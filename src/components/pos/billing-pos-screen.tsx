@@ -34,6 +34,8 @@ import type {
   DescuentoForUser,
   DescuentoRecord,
   EmissionPointRecord,
+  FacDocumentoPOS,
+  FacDocumentoPOSDetalle,
   FacTipoDocumentoRecord,
   OrderProductOption,
   PriceListWithProductPrice,
@@ -288,6 +290,18 @@ export function BillingPosScreen({ company, branches, emissionPoints, customers,
   const [customerCommitted, setCustomerCommitted] = useState("")
   const [customerAutomode, setCustomerAutomode] = useState(true)
   const [customerApplying, setCustomerApplying] = useState(false)
+  // Facturas pendientes
+  const [pendingModalOpen, setPendingModalOpen] = useState(false)
+  const [pendingDocs, setPendingDocs] = useState<FacDocumentoPOS[]>([])
+  const [pendingLoading, setPendingLoading] = useState(false)
+  const [pendingLoadingId, setPendingLoadingId] = useState<number | null>(null)
+  const [activePosDocId, setActivePosDocId] = useState<number | null>(null) // doc cargado en edicion
+  // Modal de referencia (pedir nombre + referencia al pausar/enviar a caja)
+  const [refModalOpen, setRefModalOpen] = useState(false)
+  const [refModalMode, setRefModalMode] = useState<"pausar" | "enviar_caja">("pausar")
+  const [refNombre, setRefNombre] = useState("")
+  const [refReferencia, setRefReferencia] = useState("")
+  const [refSaving, setRefSaving] = useState(false)
   const [confirmDeleteLine, setConfirmDeleteLine] = useState<BillingPosLine | null>(null)
   const [supervisorDeleteLine, setSupervisorDeleteLine] = useState<BillingPosLine | null>(null)
   const [supervisorUsername, setSupervisorUsername] = useState("")
@@ -691,6 +705,155 @@ export function BillingPosScreen({ company, branches, emissionPoints, customers,
       setCustomerApplying(false)
       setCustomerModalOpen(false)
       setCustomerSearch("")
+    }
+  }
+
+  // Determina si el cliente activo requiere pedir referencia al pausar/enviar
+  function needsRefModal(): boolean {
+    if (!selectedCustomer) return false
+    return selectedCustomer.pedirReferencia
+  }
+
+  // Construye el payload de lineas para guardar en DB
+  function buildLineasPayload() {
+    return lines
+      .filter((l) => l.productId > 0)
+      .map((l, idx) => ({
+        numLinea: idx + 1,
+        productId: l.productId,
+        code: l.code,
+        description: l.description,
+        quantity: l.quantity,
+        unit: l.unit,
+        basePrice: l.basePrice,
+        taxRate: l.taxRate,
+        applyTax: l.applyTax,
+        applyTip: l.applyTip,
+        lineDiscount: l.lineDiscount,
+      }))
+  }
+
+  async function executeGuardarPendiente(nombreCliente?: string, referencia?: string) {
+    const lineas = buildLineasPayload()
+    if (lineas.length === 0) { toast.warning("Agrega al menos un ítem antes de pausar."); return }
+    const idPuntoEmision = selectedEmissionPoint?.id
+    if (!idPuntoEmision) { toast.error("No hay punto de emisión configurado."); return }
+    setRefSaving(true)
+    try {
+      const payload = {
+        idPuntoEmision,
+        idCliente: selectedCustomerId,
+        nombreCliente: nombreCliente ?? referenceValue ?? null,
+        referencia: referencia ?? null,
+        idTipoDocumento: selectedDocumentId,
+        idAlmacen: selectedWarehouseId,
+        fechaDocumento: invoiceDateValue,
+        vendedor: sellerName,
+        lineas,
+        ...(activePosDocId ? { id: activePosDocId } : {}),
+      }
+      const accion = activePosDocId ? "pausar" : undefined
+      const url = activePosDocId
+        ? apiUrl(`/api/facturacion/pos-documentos/${activePosDocId}`)
+        : apiUrl("/api/facturacion/pos-documentos")
+      const method = activePosDocId ? "PUT" : "POST"
+      const body = activePosDocId ? { ...payload, accion: "pausar" } : payload
+      const res = await fetch(url, {
+        method,
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      const json = (await res.json()) as { ok?: boolean; data?: { id?: number }; message?: string }
+      if (!json.ok) throw new Error(json.message ?? "Error al guardar")
+      const newId = activePosDocId ?? json.data?.id ?? null
+      setActivePosDocId(null)
+      resetPos()
+      toast.success(`Factura pausada correctamente.${newId ? ` #${newId}` : ""}`)
+      setRefModalOpen(false)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al pausar")
+    } finally {
+      setRefSaving(false)
+    }
+  }
+
+  function handlePausar() {
+    const lineas = buildLineasPayload()
+    if (lineas.length === 0) { toast.warning("Agrega al menos un ítem antes de pausar."); return }
+    if (needsRefModal()) {
+      setRefNombre(selectedCustomer?.name ?? "")
+      setRefReferencia(referenceValue)
+      setRefModalMode("pausar")
+      setRefModalOpen(true)
+    } else {
+      void executeGuardarPendiente(undefined, referenceValue || undefined)
+    }
+  }
+
+  async function handleCargarPendiente(doc: FacDocumentoPOS) {
+    setPendingLoadingId(doc.id)
+    try {
+      const res = await fetch(apiUrl(`/api/facturacion/pos-documentos/${doc.id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "cargar" }),
+      })
+      const json = (await res.json()) as { ok?: boolean; data?: FacDocumentoPOSDetalle; message?: string }
+      if (!json.ok || !json.data) throw new Error(json.message ?? "Error al cargar")
+      const det = json.data
+      // Restaurar estado del POS
+      lineKeyCounterRef.current = det.lineas.length + 1
+      setLines([
+        ...det.lineas.map((l, idx) => ({
+          key: `line-loaded-${idx}`,
+          productId: l.productId,
+          code: l.code,
+          description: l.description,
+          quantity: l.quantity,
+          unit: l.unit,
+          basePrice: l.basePrice,
+          taxRate: l.taxRate,
+          applyTax: l.applyTax,
+          applyTip: l.applyTip,
+          lineDiscount: l.lineDiscount,
+        })),
+        buildEmptyLine(getNextLineKey()),
+      ])
+      if (det.idCliente) setSelectedCustomerId(det.idCliente)
+      if (det.idTipoDocumento) setSelectedDocumentId(det.idTipoDocumento)
+      if (det.idAlmacen) setSelectedWarehouseId(det.idAlmacen)
+      if (det.fechaDocumento) setInvoiceDateValue(det.fechaDocumento)
+      if (det.vendedor) setSellerName(det.vendedor)
+      if (det.referencia) setReferenceValue(det.referencia)
+      setActivePosDocId(doc.id)
+      setPendingModalOpen(false)
+      toast.success(`Factura #${doc.id} cargada para edición.`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al cargar la factura")
+    } finally {
+      setPendingLoadingId(null)
+    }
+  }
+
+  async function handleAnularPendiente(doc: FacDocumentoPOS) {
+    setPendingLoadingId(doc.id)
+    try {
+      const res = await fetch(apiUrl(`/api/facturacion/pos-documentos/${doc.id}`), {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ accion: "anular" }),
+      })
+      const json = (await res.json()) as { ok?: boolean; message?: string }
+      if (!json.ok) throw new Error(json.message ?? "Error al anular")
+      setPendingDocs((prev) => prev.filter((d) => d.id !== doc.id))
+      toast.success("Factura anulada.")
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Error al anular")
+    } finally {
+      setPendingLoadingId(null)
     }
   }
 
@@ -1126,7 +1289,27 @@ export function BillingPosScreen({ company, branches, emissionPoints, customers,
           <button type="button" className="secondary-button" onClick={() => { setCustomerSearch(""); setCustomerCommitted(""); setCustomerModalOpen(true) }}>
             <UserRound size={16} /> Clientes
           </button>
-          <button type="button" className="secondary-button"><FileClock size={16} /> Fac. pendiente</button>
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => {
+              setPendingDocs([])
+              setPendingLoading(true)
+              setPendingModalOpen(true)
+              const idPuntoEmision = selectedEmissionPoint?.id
+              if (!idPuntoEmision) { setPendingLoading(false); return }
+              void fetch(apiUrl(`/api/facturacion/pos-documentos?idPuntoEmision=${idPuntoEmision}`), { credentials: "include" })
+                .then(async (res) => {
+                  const json = (await res.json()) as { ok?: boolean; data?: FacDocumentoPOS[] }
+                  if (json.ok && json.data) setPendingDocs(json.data)
+                })
+                .catch(() => undefined)
+                .finally(() => setPendingLoading(false))
+            }}
+          >
+            <FileClock size={16} /> Fac. pendiente
+            {activePosDocId && <span className="billing-pos__pending-badge">#{activePosDocId}</span>}
+          </button>
           <div className="billing-pos__toolbar-menu billing-pos__toolbar-menu--footer" ref={optionsRef}>
             <button
               type="button"

@@ -6146,6 +6146,7 @@ export type TerceroRecord = {
   idTipoComprobante: number | null
   idDescuento: number | null
   notas: string
+  pedirReferencia: boolean
   active: boolean
 }
 
@@ -6274,6 +6275,7 @@ function mapTerceroRow(row: QueryRow): TerceroRecord {
     idTipoComprobante: row.IdTipoComprobante != null ? toNumber(row.IdTipoComprobante) : null,
     idDescuento: row.IdDescuento != null ? toNumber(row.IdDescuento) : null,
     notas: toText(row.Notas),
+    pedirReferencia: Boolean(row.PedirReferencia),
     active: Boolean(row.Activo),
   }
 }
@@ -9835,5 +9837,195 @@ export async function syncFacCajaPOSUsuarios(id: number, userIds: number[]): Pro
     .input("UsuariosAsignados", userIds.join(","))
     .execute("dbo.spFacCajasPOSCRUD")
   return (result.recordset as QueryRow[]).map(mapFacCajaPOSUsuarioRow)
+}
+
+// ─────────────────────────────────────────────────────────────
+// FacDocumentosPOS — documentos pausados / pendientes POS
+// ─────────────────────────────────────────────────────────────
+
+export type FacDocumentoPOSEstado = "PAUSADO" | "EN_EDICION" | "EN_CAJA" | "RETORNADO" | "ANULADO"
+
+export type FacDocumentoPOSLinea = {
+  numLinea: number
+  productId: number
+  code: string
+  description: string
+  quantity: number
+  unit: string
+  basePrice: number
+  taxRate: number
+  applyTax: boolean
+  applyTip: boolean
+  lineDiscount: number
+}
+
+export type FacDocumentoPOS = {
+  id: number
+  idPuntoEmision: number
+  idUsuario: number
+  idCliente: number | null
+  nombreCliente: string | null   // nombre manual para cliente final + referencia en impresion
+  referencia: string | null      // referencia del documento (guardada y visible en impresion)
+  idTipoDocumento: number | null
+  nombreTipoDocumento: string | null
+  idAlmacen: number | null
+  fechaDocumento: string
+  vendedor: string | null
+  estado: FacDocumentoPOSEstado
+  notas: string | null
+  fechaCreacion: string
+  cantidadLineas: number
+  totalEstimado: number | null
+}
+
+export type FacDocumentoPOSDetalle = FacDocumentoPOS & {
+  lineas: FacDocumentoPOSLinea[]
+}
+
+function mapFacDocumentoPOSRow(row: QueryRow): FacDocumentoPOS {
+  return {
+    id: toNumber(row.IdDocumentoPOS),
+    idPuntoEmision: toNumber(row.IdPuntoEmision),
+    idUsuario: toNumber(row.IdUsuario),
+    idCliente: row.IdCliente != null ? toNumber(row.IdCliente) : null,
+    nombreCliente: row.NombreCliente != null ? toText(row.NombreCliente) : null,
+    referencia: row.Referencia != null ? toText(row.Referencia) : null,
+    idTipoDocumento: row.IdTipoDocumento != null ? toNumber(row.IdTipoDocumento) : null,
+    nombreTipoDocumento: row.NombreTipoDocumento != null ? toText(row.NombreTipoDocumento) : null,
+    idAlmacen: row.IdAlmacen != null ? toNumber(row.IdAlmacen) : null,
+    fechaDocumento: toText(row.FechaDocumento),
+    vendedor: row.Vendedor != null ? toText(row.Vendedor) : null,
+    estado: toText(row.Estado) as FacDocumentoPOSEstado,
+    notas: row.Notas != null ? toText(row.Notas) : null,
+    fechaCreacion: toText(row.FechaCreacion),
+    cantidadLineas: row.CantidadLineas != null ? toNumber(row.CantidadLineas) : 0,
+    totalEstimado: row.TotalEstimado != null ? toNumber(row.TotalEstimado) : null,
+  }
+}
+
+function mapFacDocumentoPOSLineaRow(row: QueryRow): FacDocumentoPOSLinea {
+  return {
+    numLinea: toNumber(row.NumLinea),
+    productId: row.IdProducto != null ? toNumber(row.IdProducto) : 0,
+    code: toText(row.Codigo),
+    description: toText(row.Descripcion),
+    quantity: toNumber(row.Cantidad),
+    unit: toText(row.Unidad),
+    basePrice: toNumber(row.PrecioBase),
+    taxRate: toNumber(row.PorcentajeImpuesto),
+    applyTax: Boolean(row.AplicaImpuesto),
+    applyTip: Boolean(row.AplicaPropina),
+    lineDiscount: toNumber(row.DescuentoLinea),
+  }
+}
+
+export async function getFacDocumentosPOS(idPuntoEmision: number): Promise<FacDocumentoPOS[]> {
+  const pool = await getPool()
+  const result = await pool.request()
+    .input("Accion", "L")
+    .input("IdPuntoEmision", idPuntoEmision)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+  return (result.recordset as QueryRow[]).map(mapFacDocumentoPOSRow)
+}
+
+export async function getFacDocumentoPOS(id: number): Promise<FacDocumentoPOSDetalle | null> {
+  const pool = await getPool()
+  const result = await pool.request()
+    .input("Accion", "O")
+    .input("IdDocumentoPOS", id)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+  const header = (result.recordsets[0] as QueryRow[])[0]
+  if (!header) return null
+  const lineas = (result.recordsets[1] as QueryRow[]).map(mapFacDocumentoPOSLineaRow)
+  return {
+    ...mapFacDocumentoPOSRow(header),
+    cantidadLineas: lineas.length,
+    totalEstimado: null,
+    lineas,
+  }
+}
+
+export type SaveFacDocumentoPOSInput = {
+  id?: number
+  idPuntoEmision: number
+  idUsuario: number
+  idCliente?: number | null
+  nombreCliente?: string | null
+  referencia?: string | null
+  idTipoDocumento?: number | null
+  idAlmacen?: number | null
+  fechaDocumento?: string
+  vendedor?: string | null
+  notas?: string | null
+  lineas: FacDocumentoPOSLinea[]
+}
+
+export async function saveFacDocumentoPOS(
+  input: SaveFacDocumentoPOSInput,
+  accion: "I" | "U" | "P" = "I"
+): Promise<number> {
+  const pool = await getPool()
+  const lineasJson = JSON.stringify(
+    input.lineas.map((l, idx) => ({ ...l, numLinea: idx + 1 }))
+  )
+  const result = await pool.request()
+    .input("Accion", accion)
+    .input("IdDocumentoPOS", input.id ?? null)
+    .input("IdPuntoEmision", input.idPuntoEmision)
+    .input("IdUsuario", input.idUsuario)
+    .input("IdCliente", input.idCliente ?? null)
+    .input("NombreCliente", input.nombreCliente ?? null)
+    .input("Referencia", input.referencia ?? null)
+    .input("IdTipoDocumento", input.idTipoDocumento ?? null)
+    .input("IdAlmacen", input.idAlmacen ?? null)
+    .input("FechaDocumento", input.fechaDocumento ?? null)
+    .input("Vendedor", input.vendedor ?? null)
+    .input("Notas", input.notas ?? null)
+    .input("LineasJson", lineasJson)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+  return toNumber((result.recordset as QueryRow[])[0]?.IdDocumentoPOS ?? 0)
+}
+
+export async function cargarFacDocumentoPOS(id: number, idUsuario: number): Promise<void> {
+  const pool = await getPool()
+  await pool.request()
+    .input("Accion", "C")
+    .input("IdDocumentoPOS", id)
+    .input("IdUsuario", idUsuario)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+}
+
+export async function enviarFacDocumentoPOSACaja(
+  id: number,
+  idUsuario: number,
+  nombreCliente?: string | null,
+  referencia?: string | null
+): Promise<void> {
+  const pool = await getPool()
+  await pool.request()
+    .input("Accion", "E")
+    .input("IdDocumentoPOS", id)
+    .input("IdUsuario", idUsuario)
+    .input("NombreCliente", nombreCliente ?? null)
+    .input("Referencia", referencia ?? null)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+}
+
+export async function anularFacDocumentoPOS(id: number, idUsuario: number): Promise<void> {
+  const pool = await getPool()
+  await pool.request()
+    .input("Accion", "X")
+    .input("IdDocumentoPOS", id)
+    .input("IdUsuario", idUsuario)
+    .execute("dbo.spFacDocumentosPOSCRUD")
+}
+
+export async function retornarFacDocumentoPOSDeCaja(id: number, idUsuario: number): Promise<void> {
+  const pool = await getPool()
+  await pool.request()
+    .input("Accion", "R")
+    .input("IdDocumentoPOS", id)
+    .input("IdUsuario", idUsuario)
+    .execute("dbo.spFacDocumentosPOSCRUD")
 }
 
