@@ -1,0 +1,43 @@
+SET NOCOUNT ON;
+
+IF COL_LENGTH('dbo.Categorias', 'Imagen') IS NULL
+BEGIN
+  ALTER TABLE dbo.Categorias ADD Imagen NVARCHAR(MAX) NULL;
+END
+ELSE
+BEGIN
+  DECLARE @CategoryImageType NVARCHAR(128) =
+    (SELECT DATA_TYPE
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Categorias' AND COLUMN_NAME = 'Imagen');
+  DECLARE @CategoryImageLen INT =
+    (SELECT CHARACTER_MAXIMUM_LENGTH
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Categorias' AND COLUMN_NAME = 'Imagen');
+
+  IF @CategoryImageType = 'nvarchar' AND ISNULL(@CategoryImageLen, -1) <> -1
+  BEGIN
+    ALTER TABLE dbo.Categorias ALTER COLUMN Imagen NVARCHAR(MAX) NULL;
+  END
+END
+
+IF COL_LENGTH('dbo.Productos', 'Imagen') IS NULL
+BEGIN
+  ALTER TABLE dbo.Productos ADD Imagen NVARCHAR(MAX) NULL;
+END
+ELSE
+BEGIN
+  DECLARE @ProductImageType NVARCHAR(128) =
+    (SELECT DATA_TYPE
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Productos' AND COLUMN_NAME = 'Imagen');
+  DECLARE @ProductImageLen INT =
+    (SELECT CHARACTER_MAXIMUM_LENGTH
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = 'dbo' AND TABLE_NAME = 'Productos' AND COLUMN_NAME = 'Imagen');
+
+  IF @ProductImageType = 'nvarchar' AND ISNULL(@ProductImageLen, -1) <> -1
+  BEGIN
+    ALTER TABLE dbo.Productos ALTER COLUMN Imagen NVARCHAR(MAX) NULL;
+  END
+END
