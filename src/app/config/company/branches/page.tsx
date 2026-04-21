@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { OrgBranchesScreen } from "@/components/pos/org-branches-screen"
 import { getBranches, getDivisions } from "@/lib/pos-data"
 
@@ -7,10 +6,8 @@ export const dynamic = "force-dynamic"
 export default async function BranchesPage() {
   const [branches, divisions] = await Promise.all([getBranches(), getDivisions()])
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <OrgBranchesScreen initialData={branches} divisions={divisions} />
       </section>
-    </AppShell>
   )
 }

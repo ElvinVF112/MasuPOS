@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function TaxesMinorExpensesPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Operaciones"
         title="Gastos Menores"
         description="Base para registrar gastos menores con su tratamiento fiscal propio."
@@ -17,6 +15,5 @@ export default function TaxesMinorExpensesPage() {
           "Base para cierres y arqueos",
         ]}
       />
-    </AppShell>
   )
 }

@@ -1,8 +1,6 @@
 import { requireApiSession } from "@/lib/api-auth"
 import {
   anularFacDocumentoPOS,
-  cargarFacDocumentoPOS,
-  enviarFacDocumentoPOSACaja,
   getFacDocumentoPOS,
   saveFacDocumentoPOS,
 } from "@/lib/pos-data"
@@ -27,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 }
 
 // PUT /api/facturacion/pos-documentos/[id]
-// body: { accion: "pausar"|"cargar"|"enviar_caja"|"anular", ...campos opcionales }
+// body: { accion: "guardar" | "anular", ...campos opcionales }
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireApiSession(request)
   if (!auth.ok) return auth.response
@@ -38,24 +36,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const body = await request.json()
     const accion: string = body.accion
 
-    if (accion === "pausar") {
-      // Actualizar + guardar lineas + cambiar estado a PAUSADO
+    if (accion === "guardar") {
       if (!Array.isArray(body.lineas) || body.lineas.length === 0)
         return NextResponse.json({ ok: false, message: "El documento no tiene líneas." }, { status: 400 })
-      await saveFacDocumentoPOS({ ...body, id: numId, idUsuario: auth.session.userId }, "P")
-      return NextResponse.json({ ok: true })
-    }
-
-    if (accion === "cargar") {
-      // EN_EDICION: marcar como siendo editado
-      await cargarFacDocumentoPOS(numId, auth.session.userId)
-      // Devolver el documento completo con lineas para restaurar el POS
-      const doc = await getFacDocumentoPOS(numId)
-      return NextResponse.json({ ok: true, data: doc })
-    }
-
-    if (accion === "enviar_caja") {
-      await enviarFacDocumentoPOSACaja(numId, auth.session.userId, body.nombreCliente, body.referencia)
+      await saveFacDocumentoPOS({ ...body, id: numId, idUsuario: auth.session.userId }, "U")
       return NextResponse.json({ ok: true })
     }
 

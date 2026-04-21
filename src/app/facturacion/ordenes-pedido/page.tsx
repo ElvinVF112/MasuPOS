@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function BillingSalesOrdersPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Facturacion / Operaciones"
         title="Ordenes de Pedido"
         description="Base para pedidos de clientes que luego pueden importarse a cotizacion o punto de ventas."
@@ -17,6 +15,5 @@ export default function BillingSalesOrdersPage() {
           "Tipos de orden configurables",
         ]}
       />
-    </AppShell>
   )
 }

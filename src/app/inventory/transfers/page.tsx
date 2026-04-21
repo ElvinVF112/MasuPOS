@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { InvTransferScreen } from "@/components/pos/inv-transfer-screen"
 import { getInvTiposDocumento, getWarehouses, listInvTransferencias } from "@/lib/pos-data"
 
@@ -24,8 +23,7 @@ export default async function TransfersPage() {
   ])
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <InvTransferScreen
           title="Transferencias de Inventario"
           docTypes={docTypes}
@@ -35,6 +33,5 @@ export default async function TransfersPage() {
           initialFechaHasta={fechaHasta}
         />
       </section>
-    </AppShell>
   )
 }

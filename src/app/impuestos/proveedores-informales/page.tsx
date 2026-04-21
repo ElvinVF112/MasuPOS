@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function TaxesInformalSuppliersPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Operaciones"
         title="Proveedores Informales"
         description="Base para registrar pagos y comprobantes asociados a proveedores informales."
@@ -17,6 +15,5 @@ export default function TaxesInformalSuppliersPage() {
           "Preparar secuencias y control documental",
         ]}
       />
-    </AppShell>
   )
 }

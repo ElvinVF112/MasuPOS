@@ -7,20 +7,19 @@ import { toast } from "sonner"
 import { apiUrl } from "@/lib/client-config"
 import { usePermissions } from "@/lib/permissions-context"
 import { useI18n } from "@/lib/i18n"
+import { resolveStartRoute } from "@/lib/workspace-navigation"
 
-function resolveStartRoute(rawRoute?: string) {
-  const route = (rawRoute || "").trim()
-  if (!route) return "/dashboard"
+function resetSessionNavigationState() {
+  if (typeof window === "undefined") return
 
-  const normalized = route.toLowerCase()
-  const legacyMap: Record<string, string> = {
-    "/": "/dashboard",
-    "/usuarios": "/config/security/users",
-    "/roles": "/config/security/roles",
-    "/permisos": "/config/security/roles",
+  for (const key of [
+    "masu_app_tabs_state",
+    "masu_sidebar_tab",
+    "masu_sidebar_active_option_key",
+    "masu_sidebar_scroll_top",
+  ]) {
+    window.sessionStorage.removeItem(key)
   }
-
-  return legacyMap[normalized] || route || "/dashboard"
 }
 
 function LoginPageContent() {
@@ -155,6 +154,7 @@ function LoginPageContent() {
 
       await new Promise((resolve) => setTimeout(resolve, 900))
 
+      resetSessionNavigationState()
       router.replace(targetRoute)
       router.refresh()
       void refreshPermissions()
@@ -198,6 +198,7 @@ function LoginPageContent() {
         description: "Contraseña actualizada correctamente",
       })
 
+      resetSessionNavigationState()
       router.replace(pendingRoute || "/")
       router.refresh()
     } catch {

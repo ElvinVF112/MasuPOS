@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function TaxesFiscalInvoicesPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Operaciones"
         title="Facturas Fiscales"
         description="Gestión de facturas con comprobantes fiscales NCF para cumplimiento DGII."
@@ -17,6 +15,5 @@ export default function TaxesFiscalInvoicesPage() {
           "Integración con secuencias madre/hija",
         ]}
       />
-    </AppShell>
   )
 }

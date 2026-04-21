@@ -513,7 +513,7 @@ export function InvTransferScreen({ title, docTypes, warehouses, initialList, in
                 <table className="inv-doc-screen__table">
                   <thead>
                     <tr>
-                      <th>Numero</th>
+                      <th>Documento</th>
                       <th>Fecha</th>
                       <th>Tipo</th>
                       <th>Origen</th>
@@ -528,9 +528,9 @@ export function InvTransferScreen({ title, docTypes, warehouses, initialList, in
                     {items.map((item) => (
                       <tr key={item.id} className={item.estadoTransferencia === "N" ? "is-voided" : ""}>
                         <td>
-                          <button type="button" className="inv-doc-screen__link" onClick={() => void viewTransfer(item.id)}>
+                          <span className="inv-doc-screen__link">
                             {item.numeroDocumento}
-                          </button>
+                          </span>
                         </td>
                         <td>{item.fecha.slice(0, 10)}</td>
                         <td>{item.nombreTipoDocumento}</td>
@@ -1120,4 +1120,3 @@ export function InvTransferScreen({ title, docTypes, warehouses, initialList, in
     </>
   )
 }
-

@@ -51,8 +51,8 @@ const DENSITY_OPTIONS: Array<{ value: VisualDensity; label: string }> = [
 ]
 
 const SIDEBAR_MODE_OPTIONS: Array<{ value: SidebarMode; label: string }> = [
-  { value: "expanded", label: "Expandido" },
-  { value: "semi", label: "Semi-compacto" },
+  { value: "always", label: "Siempre visible" },
+  { value: "autohide", label: "Auto-ocultar" },
 ]
 
 function SwatchButton({

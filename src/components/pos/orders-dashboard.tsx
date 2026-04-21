@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import {
   ArrowRightLeft,
+  House,
   Clock3,
   GitMerge,
   CreditCard,
@@ -26,6 +27,7 @@ import type { OpenOrderTicket, OrdersTrayData, ResourceOrderTray } from "@/lib/p
 import { apiUrl } from "@/lib/client-config"
 import { useFormat } from "@/lib/format-context"
 import { OrdersSplitPanel } from "@/components/pos/orders-split-panel"
+import { navigateToWorkspaceTarget } from "@/lib/workspace-navigation"
 
 type AddProductTrayItem = {
   key: number
@@ -1072,6 +1074,15 @@ export function OrdersDashboard({ data }: OrdersDashboardProps) {
               {selectedResource ? <p>{selectedResource.openCount} órdenes activas</p> : null}
             </div>
             <div className="orders-tickets-header-actions">
+              <button
+                className="secondary-button orders-header-nav-button"
+                type="button"
+                onClick={() => void navigateToWorkspaceTarget(router)}
+                title="Volver al menu principal"
+              >
+                <House size={15} />
+                <span>Volver al menu principal</span>
+              </button>
               {selectedResource && mergeVisibleOrders.length > 1 ? (
                 <button
                   className="secondary-button"

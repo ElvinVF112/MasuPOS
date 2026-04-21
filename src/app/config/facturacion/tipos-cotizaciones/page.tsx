@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { FacDocTypeScreen } from "@/components/pos/fac-doc-type-screen"
 import { getCatalogoNCF, getCurrencies, getFacTiposDocumento } from "@/lib/pos-data"
 
@@ -15,8 +14,7 @@ export default async function QuoteTypesPage() {
     .map(c => ({ id: c.id, code: c.code, name: c.name, symbol: c.symbol ?? "" }))
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <FacDocTypeScreen
           tipoOperacion="Q"
           title="Tipos de Cotización"
@@ -25,6 +23,5 @@ export default async function QuoteTypesPage() {
           catalogo={catalogo}
         />
       </section>
-    </AppShell>
   )
 }

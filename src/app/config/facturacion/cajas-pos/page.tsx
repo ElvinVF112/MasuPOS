@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { FacCajasPOSScreen } from "@/components/pos/fac-cajas-pos-screen"
 import { getBranches, getCurrencies, getEmissionPoints, getFacCajasPOS } from "@/lib/pos-data"
 
@@ -17,8 +16,7 @@ export default async function CajasPOSPage() {
   const currencyOptions = currencies.filter(c => c.active).map(c => ({ id: c.id, code: c.code, name: c.name, symbol: c.symbol ?? "" }))
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <FacCajasPOSScreen
           initialData={data}
           sucursales={sucursales}
@@ -26,6 +24,5 @@ export default async function CajasPOSPage() {
           currencies={currencyOptions}
         />
       </section>
-    </AppShell>
   )
 }

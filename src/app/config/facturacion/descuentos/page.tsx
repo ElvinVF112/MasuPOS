@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function BillingDiscountsPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Facturacion / Maestros"
         title="Descuentos"
         description="Base para descuentos por linea y descuentos generales aplicables a la factura."
@@ -17,6 +15,5 @@ export default function BillingDiscountsPage() {
           "Preparar restricciones por cliente o usuario",
         ]}
       />
-    </AppShell>
   )
 }

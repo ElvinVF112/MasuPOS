@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { InvDocTypeScreen } from "@/components/pos/inv-doc-type-screen"
 import { getCurrencies, getInvTiposDocumento } from "@/lib/pos-data"
 
@@ -14,8 +13,7 @@ export default async function PurchaseTypesPage() {
     .map(c => ({ id: c.id, code: c.code, name: c.name, symbol: c.symbol ?? "" }))
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <InvDocTypeScreen
           tipoOperacion="C"
           title="Tipos Entradas por Compras"
@@ -23,6 +21,5 @@ export default async function PurchaseTypesPage() {
           currencies={currencyOptions}
         />
       </section>
-    </AppShell>
   )
 }

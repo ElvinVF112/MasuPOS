@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { InvDocumentScreen } from "@/components/pos/inv-document-screen"
 import { getInvTiposDocumento, getWarehouses, listInvDocumentos } from "@/lib/pos-data"
 
@@ -24,8 +23,7 @@ export default async function EntriesPage() {
   ])
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <InvDocumentScreen
           tipoOperacion="E"
           title="Entradas de Inventario"
@@ -36,6 +34,5 @@ export default async function EntriesPage() {
           initialFechaHasta={fechaHasta}
         />
       </section>
-    </AppShell>
   )
 }

@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function BillingReturnsPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Facturacion / Operaciones"
         title="Devoluciones de Mercancia"
         description="Base para devoluciones, notas relacionadas y trazabilidad posterior en facturacion."
@@ -17,6 +15,5 @@ export default function BillingReturnsPage() {
           "Preparar enlace con nota de credito o ajuste",
         ]}
       />
-    </AppShell>
   )
 }

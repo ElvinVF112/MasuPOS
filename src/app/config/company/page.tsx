@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { CompanySettings } from "@/components/pos/company-settings"
 import { getCompanySettingsData, getCurrencies } from "@/lib/pos-data"
 
@@ -11,10 +10,8 @@ export default async function CompanyConfigPage() {
   ])
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <CompanySettings initialData={company} currencies={currencies} />
       </section>
-    </AppShell>
   )
 }

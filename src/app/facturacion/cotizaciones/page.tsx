@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function BillingQuotesPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Facturacion / Operaciones"
         title="Cotizaciones"
         description="Espacio base para construir cotizaciones, convertirlas y traerlas al punto de ventas."
@@ -17,6 +15,5 @@ export default function BillingQuotesPage() {
           "Preparar ciclo de aprobacion y conversion",
         ]}
       />
-    </AppShell>
   )
 }

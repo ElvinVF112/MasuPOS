@@ -1,11 +1,14 @@
 "use client"
 
-import { AlertTriangle, ArrowRightLeft, Banknote, CreditCard, RefreshCw, Store, Undo2, User, Wallet, X, XCircle } from "lucide-react"
-import { useMemo, useState } from "react"
+import { AlertTriangle, ArrowRightLeft, Banknote, Clock3, CreditCard, House, RefreshCw, ShoppingCart, Store, Undo2, UtensilsCrossed, Wallet, X, XCircle } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { apiUrl } from "@/lib/client-config"
+import { navigateToWorkspaceTarget } from "@/lib/workspace-navigation"
 
 type CashStatus = "Pendiente" | "Prefactura" | "Lista para cobro" | "Devuelta" | "Anulada"
+type CashOrigen = "POS" | "ORDEN" | null
 
 type LineItem = {
   item: string
@@ -23,6 +26,7 @@ type CentralCashAccount = {
   date: string
   time: string
   status: CashStatus
+  origen: CashOrigen
   createdBy: string
   comment: string
   mesa: string
@@ -38,6 +42,15 @@ type CentralCashAccount = {
   payments: Array<{ label: string; amount: string; icon: "cash" | "card" | "transfer" }>
 }
 
+type LiveClockState = {
+  date: string
+  time: string
+}
+
+type CurrentViewer = {
+  idCaja?: number | null
+}
+
 const INITIAL_ACCOUNTS: CentralCashAccount[] = [
   {
     id: 1,
@@ -48,6 +61,7 @@ const INITIAL_ACCOUNTS: CentralCashAccount[] = [
     date: "08/04/2026",
     time: "08:45 PM",
     status: "Pendiente",
+    origen: "ORDEN",
     createdBy: "Alicia Ramirez",
     comment: "Cuenta enviada desde Facturacion para revision final.",
     mesa: "MESA-04",
@@ -80,6 +94,7 @@ const INITIAL_ACCOUNTS: CentralCashAccount[] = [
     date: "08/04/2026",
     time: "08:51 PM",
     status: "Prefactura",
+    origen: "POS",
     createdBy: "Administrador General",
     comment: "Take out. Requiere NCF y referencia de pago.",
     mesa: "TAKE-OUT",
@@ -112,6 +127,7 @@ const INITIAL_ACCOUNTS: CentralCashAccount[] = [
     date: "08/04/2026",
     time: "09:03 PM",
     status: "Lista para cobro",
+    origen: "POS",
     createdBy: "Carlos Diaz",
     comment: "Cliente lista para pagar mixto: tarjeta + efectivo.",
     mesa: "MESA-09",
@@ -154,6 +170,24 @@ function statusClassName(status: CashStatus) {
   }
 }
 
+function OrigenBadge({ origen }: { origen: CashOrigen }) {
+  if (origen === "POS") {
+    return (
+      <span className="origin-badge origin-badge--pos" title="Generado desde Punto de Ventas">
+        <ShoppingCart size={10} /> POS
+      </span>
+    )
+  }
+  if (origen === "ORDEN") {
+    return (
+      <span className="origin-badge origin-badge--orden" title="Generado desde Ordenes">
+        <UtensilsCrossed size={10} /> Orden
+      </span>
+    )
+  }
+  return null
+}
+
 function paymentIcon(type: "cash" | "card" | "transfer") {
   switch (type) {
     case "cash":
@@ -169,20 +203,113 @@ export function BillingCentralCashScreen() {
   const router = useRouter()
   const [accounts, setAccounts] = useState<CentralCashAccount[]>(INITIAL_ACCOUNTS)
   const [selectedId, setSelectedId] = useState<number>(INITIAL_ACCOUNTS[0].id)
+  const [liveClock, setLiveClock] = useState<LiveClockState>({ date: "", time: "" })
+  const [clockUse24Hour, setClockUse24Hour] = useState(true)
+  const [activeCashLabel, setActiveCashLabel] = useState("Caja activa")
+  const [currentViewer, setCurrentViewer] = useState<CurrentViewer | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [paymentOpen, setPaymentOpen] = useState(false)
   const [returnOpen, setReturnOpen] = useState(false)
   const [annulOpen, setAnnulOpen] = useState(false)
+  const [filtroOrigen, setFiltroOrigen] = useState<CashOrigen | "TODOS">("TODOS")
 
   const visibleAccounts = useMemo(
-    () => accounts.filter((account) => account.status === "Pendiente" || account.status === "Prefactura" || account.status === "Lista para cobro"),
-    [accounts],
+    () => accounts.filter((account) => {
+      const activeStatus = account.status === "Pendiente" || account.status === "Prefactura" || account.status === "Lista para cobro"
+      const matchOrigen = filtroOrigen === "TODOS" || account.origen === filtroOrigen
+      return activeStatus && matchOrigen
+    }),
+    [accounts, filtroOrigen],
   )
 
   const selected = useMemo(() => {
     const current = visibleAccounts.find((account) => account.id === selectedId)
     return current ?? visibleAccounts[0] ?? accounts[0] ?? null
   }, [accounts, selectedId, visibleAccounts])
+
+  useEffect(() => {
+    const systemPrefers24Hour = (() => {
+      const options = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions()
+      return options.hourCycle === "h23" || options.hourCycle === "h24"
+    })()
+
+    const stored = window.localStorage.getItem("masu-central-cash-clock-24h")
+    if (stored === "true" || stored === "false") {
+      setClockUse24Hour(stored === "true")
+      return
+    }
+
+    setClockUse24Hour(systemPrefers24Hour)
+  }, [])
+
+  useEffect(() => {
+    window.localStorage.setItem("masu-central-cash-clock-24h", String(clockUse24Hour))
+  }, [clockUse24Hour])
+
+  useEffect(() => {
+    function formatNow() {
+      const now = new Date()
+      return {
+        date: new Intl.DateTimeFormat(undefined, {
+          day: "2-digit",
+          month: "2-digit",
+          year: "2-digit",
+        }).format(now),
+        time: new Intl.DateTimeFormat(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+          second: "2-digit",
+          hour12: !clockUse24Hour,
+        }).format(now),
+      }
+    }
+
+    setLiveClock(formatNow())
+    const interval = window.setInterval(() => setLiveClock(formatNow()), 1000)
+    return () => window.clearInterval(interval)
+  }, [clockUse24Hour])
+
+  useEffect(() => {
+    let cancelled = false
+
+    void fetch(apiUrl("/api/auth/me"), { cache: "no-store", credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) return
+        const result = (await response.json()) as { ok?: boolean; user?: CurrentViewer }
+        if (!result.ok || !result.user || cancelled) return
+        setCurrentViewer(result.user)
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!currentViewer?.idCaja) {
+      setActiveCashLabel("Caja activa")
+      return
+    }
+
+    let cancelled = false
+
+    void fetch(apiUrl("/api/config/facturacion/cajas-pos"), { cache: "no-store", credentials: "include" })
+      .then(async (response) => {
+        if (!response.ok) return
+        const result = (await response.json()) as { ok?: boolean; data?: Array<{ id: number; descripcion: string }> }
+        if (!result.ok || !Array.isArray(result.data) || cancelled) return
+        const activeCaja = result.data.find((item) => item.id === currentViewer.idCaja)
+        if (activeCaja?.descripcion) {
+          setActiveCashLabel(activeCaja.descripcion)
+        }
+      })
+      .catch(() => undefined)
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentViewer?.idCaja])
 
   function updateSelectedStatus(nextStatus: CashStatus, successTitle: string, successDesc: string) {
     if (!selected) return
@@ -193,11 +320,61 @@ export function BillingCentralCashScreen() {
   return (
     <section className="content-page billing-central">
       <div className="billing-central__toolbar">
-        <button type="button" className="secondary-button" onClick={() => toast.success("Bandeja actualizada", { description: "Se recargo la lista de pendientes de cobro." })}>
-          <RefreshCw size={16} /> Actualizar
+        <button
+          type="button"
+          className="secondary-button orders-header-nav-button"
+          onClick={() => void navigateToWorkspaceTarget(router)}
+          title="Volver al menú principal"
+        >
+          <House size={15} />
+          <span>Volver al menu principal</span>
         </button>
         <button type="button" className="secondary-button" onClick={() => router.push("/facturacion/punto-de-ventas")}>
           <Store size={16} /> Punto de Ventas
+        </button>
+        <div className="billing-central__toolbar-clock" aria-label="Hora y caja activa">
+          <button
+            type="button"
+            className="billing-central__toolbar-clock-toggle"
+            onClick={() => setClockUse24Hour((current) => !current)}
+            aria-label={`Cambiar a formato ${clockUse24Hour ? "12" : "24"} horas`}
+          >
+            <Clock3 size={14} />
+            <span>{clockUse24Hour ? "24H" : "12H"}</span>
+          </button>
+          <strong className="billing-central__toolbar-time">{liveClock.time}</strong>
+          <span className="billing-central__toolbar-date">{liveClock.date}</span>
+          <span className="billing-central__toolbar-caption">Caja activa · {activeCashLabel}</span>
+        </div>
+        <div className="billing-central__toolbar-filters">
+          <button
+            type="button"
+            className={filtroOrigen === "TODOS" ? "primary-button" : "secondary-button"}
+            onClick={() => setFiltroOrigen("TODOS")}
+          >
+            Todos
+          </button>
+          <button
+            type="button"
+            className={filtroOrigen === "POS" ? "primary-button" : "secondary-button"}
+            onClick={() => setFiltroOrigen("POS")}
+          >
+            <ShoppingCart size={13} /> POS
+          </button>
+          <button
+            type="button"
+            className={filtroOrigen === "ORDEN" ? "primary-button" : "secondary-button"}
+            onClick={() => setFiltroOrigen("ORDEN")}
+          >
+            <UtensilsCrossed size={13} /> Ordenes
+          </button>
+        </div>
+        <button
+          type="button"
+          className="secondary-button billing-central__toolbar-refresh"
+          onClick={() => toast.success("Bandeja actualizada", { description: "Se recargo la lista de pendientes de cobro." })}
+        >
+          <RefreshCw size={16} /> Actualizar
         </button>
       </div>
 
@@ -208,6 +385,7 @@ export function BillingCentralCashScreen() {
               <tr>
                 <th>Documento</th>
                 <th>Cliente</th>
+                <th>Origen</th>
                 <th>Tipo comprobante</th>
                 <th>Valor</th>
                 <th>Fecha-Hora</th>
@@ -227,6 +405,7 @@ export function BillingCentralCashScreen() {
                 >
                   <td>{account.document}</td>
                   <td>{account.customer}</td>
+                  <td><OrigenBadge origen={account.origen} /></td>
                   <td>{account.docType}</td>
                   <td>{account.amount}</td>
                   <td>{account.date} - {account.time}</td>
@@ -236,7 +415,7 @@ export function BillingCentralCashScreen() {
               ))}
               {visibleAccounts.length === 0 ? (
                 <tr>
-                  <td colSpan={7}><div className="billing-central__empty">No hay documentos en esta bandeja.</div></td>
+                  <td colSpan={8}><div className="billing-central__empty">No hay documentos en esta bandeja.</div></td>
                 </tr>
               ) : null}
             </tbody>
@@ -270,6 +449,10 @@ export function BillingCentralCashScreen() {
               <div className="orders-detail-card__row">
                 <span>Documento</span>
                 <strong>{selected.docType}</strong>
+              </div>
+              <div className="orders-detail-card__row">
+                <span>Origen</span>
+                <strong><OrigenBadge origen={selected.origen} /></strong>
               </div>
               <div className="orders-detail-card__row">
                 <span>Enviado</span>

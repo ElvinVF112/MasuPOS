@@ -980,7 +980,7 @@ export function InvDocumentScreen({ tipoOperacion, title, docTypes, warehouses, 
               <table className="inv-doc-screen__table">
                 <thead>
                   <tr>
-                    <th onClick={() => toggleSort("numero")}>Numero <SortIcon field="numero" /></th>
+                    <th onClick={() => toggleSort("numero")}>Documento <SortIcon field="numero" /></th>
                     <th onClick={() => toggleSort("fecha")}>Fecha <SortIcon field="fecha" /></th>
                     <th>Tipo</th>
                     <th>Almacen</th>
@@ -996,9 +996,9 @@ export function InvDocumentScreen({ tipoOperacion, title, docTypes, warehouses, 
                   {sortedDocs.map(doc => (
                     <tr key={doc.id} className={doc.estado === "N" ? "is-voided" : ""}>
                       <td>
-                        <button type="button" className="inv-doc-screen__link" onClick={() => void viewDocument(doc)}>
+                        <span className="inv-doc-screen__link">
                           {doc.numeroDocumento}
-                        </button>
+                        </span>
                       </td>
                       <td>{doc.fecha.slice(0, 10)}</td>
                       <td>{doc.nombreTipoDocumento}</td>
@@ -1665,8 +1665,6 @@ export function InvDocumentScreen({ tipoOperacion, title, docTypes, warehouses, 
     </>
   )
 }
-
-
 
 
 

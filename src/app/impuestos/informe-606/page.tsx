@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function Tax606Page() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Informes Fiscales"
         title="Informe Fiscal 606"
         description="Formato 606 — Envío de compras de bienes y servicios a la DGII."
@@ -17,6 +15,5 @@ export default function Tax606Page() {
           "Exportación a formato DGII",
         ]}
       />
-    </AppShell>
   )
 }

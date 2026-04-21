@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function TaxesSequenceUpdatePage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Operaciones"
         title="Actualizacion de Secuencias"
         description="Proceso para actualizar, controlar y revisar el consumo de secuencias fiscales."
@@ -17,6 +15,5 @@ export default function TaxesSequenceUpdatePage() {
           "Preparar reportes fiscales del modulo",
         ]}
       />
-    </AppShell>
   )
 }

@@ -1,4 +1,3 @@
-﻿import { AppShell } from "@/components/pos/app-shell"
 import { BillingPosScreen } from "@/components/pos/billing-pos-screen"
 import { getBranches, getCategories, getCatalogoNCF, getCompanySettingsData, getCurrencies, getCustomers, getDescuentos, getEmissionPoints, getFacTiposDocumento, getProductsForOrderCapture, getWarehouses } from "@/lib/pos-data"
 
@@ -18,8 +17,7 @@ export default async function BillingPosPage() {
   ])
 
   return (
-    <AppShell>
-      <BillingPosScreen
+    <BillingPosScreen
         company={company}
         branches={branches}
         emissionPoints={emissionPoints}
@@ -32,6 +30,5 @@ export default async function BillingPosPage() {
         warehouses={warehouses}
         discounts={discounts}
       />
-    </AppShell>
   )
 }

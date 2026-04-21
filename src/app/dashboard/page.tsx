@@ -1,5 +1,4 @@
 import { AlertTriangle, ShoppingCart, Store, Wallet } from "lucide-react"
-import { AppShell } from "@/components/pos/app-shell"
 
 export const dynamic = "force-dynamic"
 
@@ -12,8 +11,7 @@ const KPIS = [
 
 export default function DashboardPage() {
   return (
-    <AppShell>
-      <section className="content-page dashboard-landing">
+    <section className="content-page dashboard-landing">
 
         <div className="dashboard-kpi-grid">
           {KPIS.map((item) => {
@@ -28,6 +26,5 @@ export default function DashboardPage() {
           })}
         </div>
       </section>
-    </AppShell>
   )
 }

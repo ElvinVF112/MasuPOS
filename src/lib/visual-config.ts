@@ -2,7 +2,7 @@ export type VisualTheme = "system" | "light" | "dark" | "sepia" | "midnight"
 export type VisualFont = "system" | "segoe" | "inter" | "mono" | "serif"
 export type VisualTextSize = "sm" | "md" | "lg"
 export type VisualDensity = "compact" | "normal" | "comfortable"
-export type SidebarMode = "expanded" | "semi"
+export type SidebarMode = "always" | "autohide"
 
 export type VisualConfig = {
   theme: VisualTheme
@@ -21,7 +21,7 @@ export const DEFAULT_VISUAL_CONFIG: VisualConfig = {
   fontFamily: "segoe",
   textSize: "md",
   density: "normal",
-  sidebarMode: "expanded",
+  sidebarMode: "always",
 }
 
 export const VISUAL_PRIMARY_PRESETS = [
@@ -65,11 +65,12 @@ function safeParse<T>(value: string | null): T | null {
 
 export function loadVisualConfig(userKey: string): VisualConfig {
   if (typeof window === "undefined") return DEFAULT_VISUAL_CONFIG
-  const parsed = safeParse<Partial<VisualConfig>>(window.localStorage.getItem(getStorageKey(userKey)))
-  return {
-    ...DEFAULT_VISUAL_CONFIG,
-    ...(parsed ?? {}),
-  }
+  const parsed = safeParse<Partial<VisualConfig & { sidebarMode: string }>>(window.localStorage.getItem(getStorageKey(userKey)))
+  const raw = { ...DEFAULT_VISUAL_CONFIG, ...(parsed ?? {}) }
+  // Migrar valores legacy
+  if (raw.sidebarMode === ("expanded" as string)) raw.sidebarMode = "always"
+  if (raw.sidebarMode === ("semi" as string)) raw.sidebarMode = "autohide"
+  return raw
 }
 
 export function hasStoredVisualConfig(userKey: string) {

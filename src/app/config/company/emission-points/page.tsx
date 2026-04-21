@@ -1,4 +1,3 @@
-﻿import { AppShell } from "@/components/pos/app-shell"
 import { OrgEmissionPointsScreen } from "@/components/pos/org-emission-points-screen"
 import { getBranches, getCustomers, getEmissionPoints, getFacTiposDocumento, getPriceLists } from "@/lib/pos-data"
 
@@ -14,8 +13,7 @@ export default async function EmissionPointsPage() {
   ])
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <OrgEmissionPointsScreen
           initialData={emissionPoints}
           branches={branches}
@@ -24,6 +22,5 @@ export default async function EmissionPointsPage() {
           documentTypes={documentTypes}
         />
       </section>
-    </AppShell>
   )
 }

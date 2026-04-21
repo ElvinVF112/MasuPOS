@@ -85,6 +85,7 @@ export const NAVIGATION_TREE: NavigationModule[] = [
         options: [
           { key: "billing-pos", label: "Punto de Ventas", href: "/facturacion/pos", permission: "facturacion.pos.view" },
           { key: "billing-central-cash", label: "Caja Central", href: "/facturacion/caja-central", permission: "facturacion.caja-central.view" },
+          { key: "billing-invoices", label: "Facturas", href: "/facturacion/facturas", permission: "facturacion.facturas.view" },
           { key: "billing-quotes", label: "Cotizaciones", href: "/facturacion/cotizaciones", permission: "facturacion.cotizaciones.view" },
           { key: "billing-delivery", label: "Conduces", href: "/facturacion/conduces", permission: "facturacion.conduces.view" },
           { key: "billing-sales-orders", label: "Ordenes de Pedido", href: "/facturacion/ordenes-pedido", permission: "facturacion.ordenes-pedido.view" },
@@ -95,6 +96,7 @@ export const NAVIGATION_TREE: NavigationModule[] = [
         key: "queries",
         label: "Consultas",
         options: [
+          { key: "billing-operations", label: "Operaciones (Mantenimiento)", href: "/facturacion/operaciones", permission: "facturacion.operaciones.view" },
           { key: "billing-sales-detail", label: "Detalle de Ventas", href: "/facturacion/consultas/detalle-ventas", permission: "facturacion.detalle-ventas.view" },
           { key: "billing-sales-summary", label: "Resumen de Ventas", href: "/facturacion/consultas/resumen-ventas", permission: "facturacion.resumen-ventas.view" },
         ],
@@ -110,6 +112,7 @@ export const NAVIGATION_TREE: NavigationModule[] = [
           { key: "billing-quote-types", label: "Tipos de Cotizacion", href: "/config/facturacion/tipos-cotizaciones", permission: "config.facturacion.tipos-cotizaciones.view" },
           { key: "billing-delivery-types", label: "Tipos de Conduce", href: "/config/facturacion/tipos-conduces", permission: "config.facturacion.tipos-conduces.view" },
           { key: "billing-sales-order-types", label: "Tipos de Ordenes de Pedido", href: "/config/facturacion/tipos-ordenes-pedido", permission: "config.facturacion.tipos-ordenes-pedido.view" },
+          { key: "billing-vendors", label: "Vendedores", href: "/config/facturacion/vendedores", permission: "config.facturacion.vendedores.view" },
         ],
       },
     ],
@@ -218,6 +221,7 @@ export const NAVIGATION_TREE: NavigationModule[] = [
           { key: "cxc-customer-types", label: "Tipos de Clientes", href: "/config/cxc/customer-types", permission: "config.cxc.customer-types.view" },
           { key: "cxc-customer-categories", label: "Categorias de Clientes", href: "/config/cxc/customer-categories", permission: "config.cxc.customer-categories.view" },
           { key: "cxc-discounts", label: "Descuentos", href: "/config/cxc/discounts", permission: "config.cxc.discounts.view" },
+          { key: "cxc-vendors", label: "Vendedores", href: "/config/facturacion/vendedores", permission: "config.facturacion.vendedores.view" },
         ],
       },
       {

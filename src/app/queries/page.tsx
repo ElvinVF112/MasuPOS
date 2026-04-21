@@ -1,5 +1,4 @@
 import { Database, Download, FileSpreadsheet, Filter } from "lucide-react"
-import { AppShell } from "@/components/pos/app-shell"
 
 export const dynamic = "force-dynamic"
 
@@ -12,8 +11,7 @@ const queryModules = [
 
 export default function QueriesPage() {
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <div className="queries-layout">
           <aside className="data-panel">
             <div className="data-panel__header"><h2>Modulos</h2><p>Catalogo inicial importado desde UI 2.0.</p></div>
@@ -48,6 +46,5 @@ export default function QueriesPage() {
           </section>
         </div>
       </section>
-    </AppShell>
   )
 }

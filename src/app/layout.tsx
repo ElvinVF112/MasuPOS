@@ -4,6 +4,7 @@ import { I18nProvider } from "@/lib/i18n"
 import { PermissionsProvider } from "@/lib/permissions-context"
 import { FormatProvider } from "@/lib/format-context"
 import { GlobalToaster } from "@/components/pos/global-toaster"
+import { RootShell } from "@/components/pos/root-shell"
 
 export const metadata: Metadata = {
   title: "Masu POS V2",
@@ -17,7 +18,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <I18nProvider>
           <PermissionsProvider>
             <FormatProvider>
-              {children}
+              <RootShell>{children}</RootShell>
               <GlobalToaster />
             </FormatProvider>
           </PermissionsProvider>

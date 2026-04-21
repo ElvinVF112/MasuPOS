@@ -15,3 +15,8 @@ temp_*
 .claude/
 .playwright-cli/
 _*.json
+.agents/
+.codex/
+.codex-caveman-temp/
+plugins/
+skills-lock.json

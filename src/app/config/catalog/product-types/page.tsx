@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { CatalogProductTypesScreen } from "@/components/pos/catalog-product-types-screen"
 import { getProductTypes } from "@/lib/pos-data"
 
@@ -8,10 +7,8 @@ export default async function CatalogProductTypesPage() {
   const initialData = await getProductTypes()
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <CatalogProductTypesScreen initialData={initialData} />
       </section>
-    </AppShell>
   )
 }

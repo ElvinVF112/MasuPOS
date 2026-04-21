@@ -279,7 +279,7 @@ BEGIN
             D.Notas,
             D.FechaCreacion,
             D.FechaModificacion,
-            U.NombreCompleto                     AS NombreUsuario,
+            LTRIM(RTRIM(ISNULL(U.Nombres,'') + ' ' + ISNULL(U.Apellidos,''))) AS NombreUsuario,
             -- Conteo de lineas con producto
             (SELECT COUNT(*) FROM dbo.FacDocumentoPOSDetalle DL
              WHERE DL.IdDocumentoPOS = D.IdDocumentoPOS

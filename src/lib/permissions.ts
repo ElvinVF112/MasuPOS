@@ -20,6 +20,17 @@ export type PermissionKey =
   | "facturacion.conduces.view"
   | "facturacion.ordenes-pedido.view"
   | "facturacion.devoluciones.view"
+  | "facturacion.facturas.view"
+  | "facturacion.facturas.create"
+  | "facturacion.facturas.edit"
+  | "facturacion.facturas.anular"
+  | "facturacion.facturas.reimprimir"
+  | "facturacion.facturas.devolucion"
+  | "facturacion.operaciones.view"
+  | "facturacion.operaciones.edit"
+  | "facturacion.operaciones.anular"
+  | "facturacion.operaciones.devolucion"
+  | "facturacion.operaciones.reimprimir"
   | "facturacion.detalle-ventas.view"
   | "facturacion.resumen-ventas.view"
   | "config.facturacion.cajas-pos.view"
@@ -29,6 +40,10 @@ export type PermissionKey =
   | "config.facturacion.tipos-cotizaciones.view"
   | "config.facturacion.tipos-conduces.view"
   | "config.facturacion.tipos-ordenes-pedido.view"
+  | "config.facturacion.vendedores.view"
+  | "config.facturacion.vendedores.create"
+  | "config.facturacion.vendedores.edit"
+  | "config.facturacion.vendedores.delete"
   | "impuestos.facturas-fiscales.view"
   | "impuestos.gastos-menores.view"
   | "impuestos.proveedores-informales.view"
@@ -162,6 +177,7 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { pattern: "/config/facturacion/tipos-cotizaciones", key: "config.facturacion.tipos-cotizaciones.view" },
   { pattern: "/config/facturacion/tipos-conduces", key: "config.facturacion.tipos-conduces.view" },
   { pattern: "/config/facturacion/tipos-ordenes-pedido", key: "config.facturacion.tipos-ordenes-pedido.view" },
+  { pattern: "/config/facturacion/vendedores", key: "config.facturacion.vendedores.view" },
   { pattern: "/config/impuestos/tipos-comprobantes", key: "config.impuestos.tipos-comprobantes.view" },
   { pattern: "/config/impuestos/secuencias-fiscales", key: "config.impuestos.secuencias-fiscales.view" },
   { pattern: "/config/company", key: "config.company.view" },
@@ -171,6 +187,8 @@ export const ROUTE_PERMISSIONS: RoutePermissionRule[] = [
   { pattern: "/facturacion/conduces", key: "facturacion.conduces.view" },
   { pattern: "/facturacion/ordenes-pedido", key: "facturacion.ordenes-pedido.view" },
   { pattern: "/facturacion/devoluciones", key: "facturacion.devoluciones.view" },
+  { pattern: "/facturacion/facturas", key: "facturacion.facturas.view" },
+  { pattern: "/facturacion/operaciones", key: "facturacion.operaciones.view" },
   { pattern: "/facturacion/consultas/detalle-ventas", key: "facturacion.detalle-ventas.view" },
   { pattern: "/facturacion/consultas/resumen-ventas", key: "facturacion.resumen-ventas.view" },
   { pattern: "/impuestos/facturas-fiscales", key: "impuestos.facturas-fiscales.view" },

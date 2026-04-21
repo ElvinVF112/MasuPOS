@@ -9,6 +9,7 @@ export type AuthSession = {
   token: string
   userId: number
   roleId: number
+  idCaja: number | null
   userType: "A" | "S" | "O"
   role: string
   fullName: string
@@ -62,6 +63,7 @@ function mapSession(row: QueryRow): AuthSession {
     token: toText(row.TokenSesion),
     userId: toNumber(row.IdUsuario),
     roleId: toNumber(row.IdRol),
+    idCaja: row.IdCaja != null ? toNumber(row.IdCaja) : null,
     userType: toUserType(row.TipoUsuario, role),
     role,
     fullName: `${toText(row.Nombres)} ${toText(row.Apellidos)}`.trim(),

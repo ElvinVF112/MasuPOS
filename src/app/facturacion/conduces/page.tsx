@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function BillingDeliveryNotesPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Facturacion / Operaciones"
         title="Conduces"
         description="Base para manejar conduces de salida y su relacion con facturacion posterior."
@@ -17,6 +15,5 @@ export default function BillingDeliveryNotesPage() {
           "Tipos de conduce configurables",
         ]}
       />
-    </AppShell>
   )
 }

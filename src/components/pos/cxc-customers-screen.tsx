@@ -57,6 +57,7 @@ type CustomerForm = {
   idDescuento: string
   idDocumentoVenta: string
   idTipoComprobante: string
+  pedirReferencia: boolean
   notas: string
   active: boolean
 }
@@ -88,6 +89,7 @@ const emptyForm: CustomerForm = {
   idDescuento: "",
   idDocumentoVenta: "",
   idTipoComprobante: "",
+  pedirReferencia: false,
   notas: "",
   active: true,
 }
@@ -122,6 +124,7 @@ function recordToForm(r: TerceroRecord): CustomerForm {
     idDocumentoVenta: r.idDocumentoVenta != null ? String(r.idDocumentoVenta) : "",
     idTipoComprobante: r.idTipoComprobante != null ? String(r.idTipoComprobante) : "",
     notas: r.notas,
+    pedirReferencia: r.pedirReferencia,
     active: r.active,
   }
 }
@@ -138,6 +141,7 @@ function formToPayload(form: CustomerForm) {
     idDescuento: form.idDescuento ? Number(form.idDescuento) : null,
     idDocumentoVenta: form.idDocumentoVenta ? Number(form.idDocumentoVenta) : null,
     idTipoComprobante: form.idTipoComprobante ? Number(form.idTipoComprobante) : null,
+    pedirReferencia: form.pedirReferencia,
     esCliente: true,
   }
 }
@@ -758,7 +762,7 @@ export function CxCCustomersScreen({ data }: { data: CxCMaestrosData }) {
                         <option value="">-- Sin documento --</option>
                         {data.lookups.salesDocumentTypes.map((item) => (
                           <option key={item.id} value={String(item.id)}>
-                            {item.codigo} - {item.description}
+                            {item.prefijo} - {item.description}
                           </option>
                         ))}
                       </select>
@@ -778,6 +782,18 @@ export function CxCCustomersScreen({ data }: { data: CxCMaestrosData }) {
                           </option>
                         ))}
                       </select>
+                    </label>
+
+                    <label className="company-active-toggle form-grid__full">
+                      <div><span>Pedir Referencia</span></div>
+                      <button
+                        type="button"
+                        className={form.pedirReferencia ? "toggle-switch is-on" : "toggle-switch"}
+                        onClick={() => isEditing && setForm({ ...form, pedirReferencia: !form.pedirReferencia })}
+                        disabled={!isEditing}
+                      >
+                        <span />
+                      </button>
                     </label>
                   </div>
                 </div>

@@ -26,7 +26,7 @@ type ItemForm = {
   idCatalogoNCF: number | null
   afectaInventario: boolean
   reservaStock: boolean
-  generaFactura: boolean
+
   active: boolean
 }
 
@@ -42,7 +42,6 @@ function recordToForm(r: FacTipoDocumentoRecord): ItemForm {
     idCatalogoNCF: r.idCatalogoNCF,
     afectaInventario: r.afectaInventario,
     reservaStock: r.reservaStock,
-    generaFactura: r.generaFactura,
     active: r.active,
   }
 }
@@ -58,7 +57,6 @@ function emptyForm(tipoOperacion: FacTipoOperacion): ItemForm {
     idCatalogoNCF: null,
     afectaInventario: tipoOperacion === "K",
     reservaStock: tipoOperacion === "P",
-    generaFactura: false,
     active: true,
   }
 }
@@ -550,10 +548,6 @@ export function FacDocTypeScreen({ tipoOperacion, title, initialData, currencies
                         <label className="form-grid__toggle">
                           <span>Reserva Stock</span>
                           <button type="button" className={form.reservaStock ? "toggle-switch is-on" : "toggle-switch"} onClick={() => isEditing && setForm((prev) => ({ ...prev, reservaStock: !prev.reservaStock }))} disabled={!isEditing}><span /></button>
-                        </label>
-                        <label className="form-grid__toggle">
-                          <span>Genera Factura</span>
-                          <button type="button" className={form.generaFactura ? "toggle-switch is-on" : "toggle-switch"} onClick={() => isEditing && setForm((prev) => ({ ...prev, generaFactura: !prev.generaFactura }))} disabled={!isEditing}><span /></button>
                         </label>
                       </div>
                     )}

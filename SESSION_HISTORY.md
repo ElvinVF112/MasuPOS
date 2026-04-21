@@ -4357,3 +4357,87 @@ Modal para buscar y asignar el cliente activo en el POS.
 - [ ] Cobrar (formas de pago)
 - [ ] Guardar/emitir documento
 
+---
+
+### 2026-04-15 - TAREA 58 continuación: Módulo Facturas CRUD + Filtros Secuencia + Devolución NC
+
+#### Resumen ejecutivo
+
+Se completó el pipeline completo de Facturación: filtros de secuencia en SP y route, estados
+con labels correctos, pantalla CRUD de Facturas siguiendo el patrón InvDocumentScreen, y ruta
+de página con navegación registrada.
+
+---
+
+#### Cambios completados
+
+**DB Scripts (aplicar en SSMS en orden):**
+
+- `database/165_sp_fac_documentos_secuencia_filtros.sql`
+  - Recrea `spFacDocumentosCRUD` con params `@SecuenciaDesde` y `@SecuenciaHasta` en acción `L`
+  - WHERE: `AND (@SecuenciaDesde IS NULL OR d.Secuencia >= @SecuenciaDesde)`
+
+- `database/166_fac_tipo_nc.sql`
+  - Agrega 'N' al CHECK constraint `CK_FacTiposDocumento_TipoOp`
+  - Seed: `TipoOperacion='N', Codigo='NC', Descripcion='Nota de Crédito'` si no existe
+
+**`src/lib/pos-data.ts`**
+- `FacTipoOperacion` type: agregado `"N"` para NC
+- `listFacDocumentos`: params `secuenciaDesde?: number; secuenciaHasta?: number`
+- Nuevo tipo `FacDocumentoConPagosRecord` con campos pagoEfectivo/Tarjeta/Cheque/Transferencia/Credito/Otros
+- Nueva función `listFacDocumentosConPagos()` — JOIN inline con GROUP BY + COUNT(*) OVER() + OFFSET/FETCH
+- Nuevo tipo `SaveFacDocumentoInput` + función `saveFacDocumento()` — INSERT/UPDATE cabecera + líneas
+- Nueva función `createNotaCreditoDesdeFactura()` — crea NC desde FAC con cantidades parciales/totales
+
+**`src/app/api/facturacion/documentos/route.ts`**
+- Fix: `pageOffset` ahora se lee directamente de `sp.get("pageOffset")` (antes calculaba `page * pageSize`)
+- Params `secuenciaDesde`/`secuenciaHasta` pasados al data layer
+- Enruta a `listFacDocumentosConPagos` cuando `incluirPagos=1`
+- Handler `POST` para crear documentos vía `saveFacDocumento`
+
+**`src/app/api/facturacion/documentos/[id]/route.ts`**
+- `accion: "devolucion"` → llama `createNotaCreditoDesdeFactura`
+- `accion: "editar"` → llama `saveFacDocumento` con `idDocumento`
+
+**`src/app/globals.css`**
+- Clases `--return` y `--return:hover` para botón de devolución (amber)
+
+**`src/components/pos/fac-operaciones-screen.tsx`**
+- Estados: EM→"No Posteado" (amber), EN/CE→"Posteado" (green), AN→"Anulado" (red)
+- `DevLinea` type movido a nivel de módulo
+- Modal de devolución completo: tabla de líneas con inputs de cantidad, motivo, submit amber
+- Botón Devolución ahora llama `abrirDevolucion()` (antes era stub toast)
+
+**`src/components/pos/fac-documentos-screen.tsx`** (NUEVO, ~620 líneas)
+- Componente CRUD completo siguiendo patrón InvDocumentScreen
+- Props: `{ tiposDocumento, customers, tiposNCF, emissionPoints }`
+- Vistas: `"list" | "new" | "detail"`
+- Lista: filtros (fecha, secuencia, cliente), tabla, paginación
+- Detalle: topbar con navegación first/prev/next/last + acciones, grid de cabecera, tabla líneas, tabla pagos
+- Formulario: tipo doc, fecha, cliente, RNC, tipo NCF, NCF, comentario, grilla de líneas con búsqueda de productos
+- Modal de búsqueda de productos (debounced 300ms → `/api/catalog/products/search`)
+- Modales anular y devolución en lista y detalle
+
+**`src/app/facturacion/facturas/page.tsx`** (NUEVO)
+- Page server component: carga `getFacTiposDocumento("F")`, `getCustomers()`, `getCatalogoNCF()`, `getEmissionPoints()`
+- Renderiza `<FacDocumentosScreen>` dentro de `<AppShell>`
+
+**`src/lib/navigation.ts`**
+- Entrada `billing-invoices` → `/facturacion/facturas` insertada **encima** de `billing-quotes`
+
+**`src/lib/permissions.ts`**
+- Nuevas claves: `facturacion.facturas.view/create/edit/anular/reimprimir/devolucion`
+- Nueva regla route: `/facturacion/facturas` → `facturacion.facturas.view`
+
+---
+
+#### Pendientes para próxima sesión
+
+1. **Aplicar scripts DB en SSMS**: `165_sp_fac_documentos_secuencia_filtros.sql` y `166_fac_tipo_nc.sql`
+2. **Checkpoint permisos DB**: INSERT en `Pantallas` + `RolPantallaPermisos` para `facturacion.facturas.*`
+   (seguir patrón del checkpoint estándar — ver `feedback_db_permissions_checkpoint.md`)
+3. **Verificar build**: `npm run build`
+4. **Probar Facturas CRUD**: crear factura nueva, ver detalle, editar, anular, generar NC por devolución
+5. **Eliminar o redirigir** entrada `billing-operations` en Consultas si queda redundante con el nuevo módulo Facturas
+6. **TAREA 58.3**: Cobrar (formas de pago) y Guardar/Emitir documento en POS
+

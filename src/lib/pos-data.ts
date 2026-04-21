@@ -73,6 +73,12 @@ export type OrderProductOption = {
   applyTax: boolean
   taxRate: number
   applyTip: boolean
+  canSellInBilling: boolean
+  allowDiscount: boolean
+  allowPriceChange: boolean
+  managesStock: boolean
+  sellWithoutStock: boolean
+  stock: number
 }
 
 export type OpenOrderTicket = {
@@ -2180,6 +2186,12 @@ export async function getProductsForOrderCapture() {
       ISNULL(P.AplicaImpuesto, 0) AS AplicaImpuesto,
       ISNULL(TI.Tasa, 0) AS TasaImpuesto,
       ISNULL(P.AplicaPropina, 0) AS AplicaPropina,
+      ISNULL(P.SeVendeEnFactura, 1) AS SeVendeEnFactura,
+      ISNULL(P.PermiteDescuento, 1) AS PermiteDescuento,
+      ISNULL(P.PermiteCambioPrecio, 1) AS PermiteCambioPrecio,
+      ISNULL(P.ManejaExistencia, 0) AS ManejaExistencia,
+      ISNULL(P.VenderSinExistencia, 1) AS VenderSinExistencia,
+      ISNULL((SELECT ISNULL(SUM(pa.Cantidad), 0) FROM dbo.ProductoAlmacenes pa WHERE pa.IdProducto = P.IdProducto AND pa.RowStatus = 1), 0) AS Existencia,
       ISNULL((
         SELECT TOP 1 PP.Precio
         FROM dbo.ProductoPrecios PP
@@ -2213,6 +2225,12 @@ export async function getProductsForOrderCapture() {
       ISNULL(P.AplicaImpuesto, 0) AS AplicaImpuesto,
       ISNULL(TI.Tasa, 0) AS TasaImpuesto,
       ISNULL(P.AplicaPropina, 0) AS AplicaPropina,
+      ISNULL(P.SeVendeEnFactura, 1) AS SeVendeEnFactura,
+      ISNULL(P.PermiteDescuento, 1) AS PermiteDescuento,
+      ISNULL(P.PermiteCambioPrecio, 1) AS PermiteCambioPrecio,
+      ISNULL(P.ManejaExistencia, 0) AS ManejaExistencia,
+      ISNULL(P.VenderSinExistencia, 1) AS VenderSinExistencia,
+      ISNULL((SELECT ISNULL(SUM(pa.Cantidad), 0) FROM dbo.ProductoAlmacenes pa WHERE pa.IdProducto = P.IdProducto AND pa.RowStatus = 1), 0) AS Existencia,
       ISNULL((
         SELECT TOP 1 PP.Precio
         FROM dbo.ProductoPrecios PP
@@ -2246,7 +2264,181 @@ export async function getProductsForOrderCapture() {
     applyTax: Boolean(row.AplicaImpuesto),
     taxRate: toNumber(row.TasaImpuesto),
     applyTip: Boolean(row.AplicaPropina),
+    canSellInBilling: row.SeVendeEnFactura !== false && row.SeVendeEnFactura !== 0,
+    allowDiscount: row.PermiteDescuento !== false && row.PermiteDescuento !== 0,
+    allowPriceChange: row.PermiteCambioPrecio !== false && row.PermiteCambioPrecio !== 0,
+    managesStock: Boolean(row.ManejaExistencia),
+    sellWithoutStock: row.VenderSinExistencia !== false && row.VenderSinExistencia !== 0,
+    stock: toNumber(row.Existencia),
   }))
+}
+
+function mapOrderProductOptionForBilling(row: QueryRow): OrderProductOption {
+  return {
+    id: toNumber(row.IdProducto),
+    code: toText(row.Codigo),
+    name: toText(row.Nombre),
+    category: toText(row.Categoria) || "Sin categorÃ­a",
+    image: toText(row.Imagen) || null,
+    categoryImage: toText(row.CategoriaImagen) || null,
+    categoryButtonBackground: toText(row.ColorFondo) || "#1e3a5f",
+    categoryButtonColor: toText(row.ColorBoton) || "#12467e",
+    categoryButtonText: toText(row.ColorTexto) || "#ffffff",
+    itemButtonBackground: toText(row.ColorFondoItem) || toText(row.ColorFondo) || "#1e3a5f",
+    itemButtonColor: toText(row.ColorBotonItem) || toText(row.ColorBoton) || "#12467e",
+    itemButtonText: toText(row.ColorTextoItem) || toText(row.ColorTexto) || "#ffffff",
+    price: toNumber(row.Precio),
+    unitId: toNumber(row.IdUnidadVenta),
+    unitName: toText(row.UnidadVenta),
+    applyTax: Boolean(row.AplicaImpuesto),
+    taxRate: toNumber(row.TasaImpuesto),
+    applyTip: Boolean(row.AplicaPropina),
+    canSellInBilling: row.SeVendeEnFactura !== false && row.SeVendeEnFactura !== 0,
+    allowDiscount: row.PermiteDescuento !== false && row.PermiteDescuento !== 0,
+    allowPriceChange: row.PermiteCambioPrecio !== false && row.PermiteCambioPrecio !== 0,
+    managesStock: Boolean(row.ManejaExistencia),
+    sellWithoutStock: row.VenderSinExistencia !== false && row.VenderSinExistencia !== 0,
+    stock: toNumber(row.Existencia),
+  }
+}
+
+function isMissingStoredProcedure(error: unknown, procedureName: string) {
+  return error instanceof Error
+    && error.message.toLowerCase().includes(`could not find stored procedure '${procedureName.toLowerCase()}'`)
+}
+
+export async function getBillingProductByExactCode(code: string): Promise<OrderProductOption | null> {
+  const pool = await getPool()
+  const normalizedCode = code.trim()
+  if (!normalizedCode) return null
+
+  try {
+    let result
+    try {
+      result = await pool.request()
+        .input("Codigo", sql.NVarChar(60), normalizedCode)
+        .execute("dbo.spFacBuscarProductoPOSPorCodigo")
+    } catch (error) {
+      if (!isTypeValidationError(error)) throw error
+      result = await pool.request()
+        .input("Codigo", normalizedCode)
+        .execute("dbo.spFacBuscarProductoPOSPorCodigo")
+    }
+    const row = (result.recordset as QueryRow[])[0]
+    return row ? mapOrderProductOptionForBilling(row) : null
+  } catch (error) {
+    if (!isMissingStoredProcedure(error, "dbo.spFacBuscarProductoPOSPorCodigo")) throw error
+  }
+
+  const metadataResult = await pool.request().query(`
+    SET NOCOUNT ON;
+    SELECT
+      CASE WHEN COL_LENGTH('dbo.Productos', 'Imagen') IS NOT NULL THEN 1 ELSE 0 END AS HasImage,
+      CASE WHEN COL_LENGTH('dbo.Productos', 'CodigoCorto') IS NOT NULL THEN 1 ELSE 0 END AS HasCodigoCorto;
+  `).catch(() => ({ recordset: [{ HasImage: 0, HasCodigoCorto: 0 }] as QueryRow[] }))
+
+  const hasProductImageColumn = toNumber(metadataResult.recordset?.[0]?.HasImage) === 1
+  const hasShortCodeColumn = toNumber(metadataResult.recordset?.[0]?.HasCodigoCorto) === 1
+  const exactCodeFilter = hasShortCodeColumn
+    ? `AND (ISNULL(P.Codigo, '') = @Codigo OR ISNULL(P.CodigoCorto, '') = @Codigo)`
+    : `AND ISNULL(P.Codigo, '') = @Codigo`
+
+  const exactLookupQuery = hasProductImageColumn ? `
+    SET NOCOUNT ON;
+    SELECT TOP 1
+      P.IdProducto,
+      ISNULL(P.Codigo, '') AS Codigo,
+      P.Nombre,
+      C.Nombre AS Categoria,
+      ISNULL(P.Imagen, '') AS Imagen,
+      ISNULL(C.Imagen, '') AS CategoriaImagen,
+      ISNULL(C.ColorFondo, '#1e3a5f') AS ColorFondo,
+      ISNULL(C.ColorBoton, '#12467e') AS ColorBoton,
+      ISNULL(C.ColorTexto, '#ffffff') AS ColorTexto,
+      ISNULL(C.ColorFondoItem, ISNULL(C.ColorFondo, '#1e3a5f')) AS ColorFondoItem,
+      ISNULL(C.ColorBotonItem, ISNULL(C.ColorBoton, '#12467e')) AS ColorBotonItem,
+      ISNULL(C.ColorTextoItem, ISNULL(C.ColorTexto, '#ffffff')) AS ColorTextoItem,
+      P.IdUnidadVenta,
+      UV.Nombre AS UnidadVenta,
+      ISNULL(P.AplicaImpuesto, 0) AS AplicaImpuesto,
+      ISNULL(TI.Tasa, 0) AS TasaImpuesto,
+      ISNULL(P.AplicaPropina, 0) AS AplicaPropina,
+      ISNULL(P.SeVendeEnFactura, 1) AS SeVendeEnFactura,
+      ISNULL(P.PermiteDescuento, 1) AS PermiteDescuento,
+      ISNULL(P.PermiteCambioPrecio, 1) AS PermiteCambioPrecio,
+      ISNULL(P.ManejaExistencia, 0) AS ManejaExistencia,
+      ISNULL(P.VenderSinExistencia, 1) AS VenderSinExistencia,
+      ISNULL((SELECT ISNULL(SUM(pa.Cantidad), 0) FROM dbo.ProductoAlmacenes pa WHERE pa.IdProducto = P.IdProducto AND pa.RowStatus = 1), 0) AS Existencia,
+      ISNULL((
+        SELECT TOP 1 PP.Precio
+        FROM dbo.ProductoPrecios PP
+        INNER JOIN dbo.ListasPrecios LP ON LP.IdListaPrecio = PP.IdListaPrecio
+        WHERE PP.IdProducto = P.IdProducto AND PP.RowStatus = 1
+        ORDER BY LP.IdListaPrecio ASC
+      ), 0) AS Precio
+    FROM dbo.Productos P
+    INNER JOIN dbo.Categorias C ON C.IdCategoria = P.IdCategoria
+    INNER JOIN dbo.UnidadesMedida UV ON UV.IdUnidadMedida = P.IdUnidadVenta
+    LEFT JOIN dbo.TasasImpuesto TI ON TI.IdTasaImpuesto = P.IdTasaImpuesto
+    WHERE P.RowStatus = 1
+      ${exactCodeFilter}
+    ORDER BY P.IdProducto;
+  ` : `
+    SET NOCOUNT ON;
+    SELECT TOP 1
+      P.IdProducto,
+      ISNULL(P.Codigo, '') AS Codigo,
+      P.Nombre,
+      C.Nombre AS Categoria,
+      CAST('' AS NVARCHAR(500)) AS Imagen,
+      ISNULL(C.Imagen, '') AS CategoriaImagen,
+      ISNULL(C.ColorFondo, '#1e3a5f') AS ColorFondo,
+      ISNULL(C.ColorBoton, '#12467e') AS ColorBoton,
+      ISNULL(C.ColorTexto, '#ffffff') AS ColorTexto,
+      ISNULL(C.ColorFondoItem, ISNULL(C.ColorFondo, '#1e3a5f')) AS ColorFondoItem,
+      ISNULL(C.ColorBotonItem, ISNULL(C.ColorBoton, '#12467e')) AS ColorBotonItem,
+      ISNULL(C.ColorTextoItem, ISNULL(C.ColorTexto, '#ffffff')) AS ColorTextoItem,
+      P.IdUnidadVenta,
+      UV.Nombre AS UnidadVenta,
+      ISNULL(P.AplicaImpuesto, 0) AS AplicaImpuesto,
+      ISNULL(TI.Tasa, 0) AS TasaImpuesto,
+      ISNULL(P.AplicaPropina, 0) AS AplicaPropina,
+      ISNULL(P.SeVendeEnFactura, 1) AS SeVendeEnFactura,
+      ISNULL(P.PermiteDescuento, 1) AS PermiteDescuento,
+      ISNULL(P.PermiteCambioPrecio, 1) AS PermiteCambioPrecio,
+      ISNULL(P.ManejaExistencia, 0) AS ManejaExistencia,
+      ISNULL(P.VenderSinExistencia, 1) AS VenderSinExistencia,
+      ISNULL((SELECT ISNULL(SUM(pa.Cantidad), 0) FROM dbo.ProductoAlmacenes pa WHERE pa.IdProducto = P.IdProducto AND pa.RowStatus = 1), 0) AS Existencia,
+      ISNULL((
+        SELECT TOP 1 PP.Precio
+        FROM dbo.ProductoPrecios PP
+        INNER JOIN dbo.ListasPrecios LP ON LP.IdListaPrecio = PP.IdListaPrecio
+        WHERE PP.IdProducto = P.IdProducto AND PP.RowStatus = 1
+        ORDER BY LP.IdListaPrecio ASC
+      ), 0) AS Precio
+    FROM dbo.Productos P
+    INNER JOIN dbo.Categorias C ON C.IdCategoria = P.IdCategoria
+    INNER JOIN dbo.UnidadesMedida UV ON UV.IdUnidadMedida = P.IdUnidadVenta
+    LEFT JOIN dbo.TasasImpuesto TI ON TI.IdTasaImpuesto = P.IdTasaImpuesto
+    WHERE P.RowStatus = 1
+      ${exactCodeFilter}
+    ORDER BY P.IdProducto;
+  `
+
+  let result
+  try {
+    result = await pool.request()
+      .input("Codigo", sql.NVarChar(60), normalizedCode)
+      .query(exactLookupQuery)
+  } catch (error) {
+    if (!isTypeValidationError(error)) throw error
+    result = await pool.request()
+      .input("Codigo", normalizedCode)
+      .query(exactLookupQuery)
+  }
+
+  const row = (result.recordset as QueryRow[])[0]
+  return row ? mapOrderProductOptionForBilling(row) : null
 }
 
 export async function listOrders(): Promise<OrderSummaryRecord[]> {
@@ -6372,6 +6564,7 @@ export async function saveCustomer(
       r.input("IdDocumentoVenta", sql.Int, input.idDocumentoVenta ?? null)
       r.input("IdTipoComprobante", sql.Int, input.idTipoComprobante ?? null)
       r.input("IdDescuento", sql.Int, input.idDescuento ?? null)
+      r.input("PedirReferencia", sql.Bit, input.pedirReferencia ?? false)
       r.input("Notas", sql.NVarChar(sql.MAX), input.notas?.trim() || null)
       r.input("Activo", sql.Bit, input.active ?? true)
       r.input("UsuarioCreacion", sql.Int, uid)
@@ -6407,6 +6600,7 @@ export async function saveCustomer(
       r.input("IdDocumentoVenta", input.idDocumentoVenta ?? null)
       r.input("IdTipoComprobante", input.idTipoComprobante ?? null)
       r.input("IdDescuento", input.idDescuento ?? null)
+      r.input("PedirReferencia", input.pedirReferencia ?? false)
       r.input("Notas", input.notas?.trim() || null)
       r.input("Activo", input.active ?? true)
       r.input("UsuarioCreacion", uid)
@@ -9463,12 +9657,11 @@ export async function getHistorialDistribucionNCF(input?: {
 // FACTURACIÓN — Tipos de Documentos
 // ============================================================
 
-export type FacTipoOperacion = "F" | "Q" | "K" | "P"
+export type FacTipoOperacion = "F" | "Q" | "K" | "P" | "N"
 
 export type FacTipoDocumentoRecord = {
   id: number
   tipoOperacion: FacTipoOperacion
-  codigo: string
   description: string
   prefijo: string
   secuenciaInicial: number
@@ -9482,7 +9675,6 @@ export type FacTipoDocumentoRecord = {
   nombreNCF: string
   afectaInventario: boolean
   reservaStock: boolean
-  generaFactura: boolean
   active: boolean
 }
 
@@ -9498,7 +9690,6 @@ function mapFacTipoDocRow(row: QueryRow): FacTipoDocumentoRecord {
   return {
     id: toNumber(row.IdTipoDocumento),
     tipoOperacion: toText(row.TipoOperacion) as FacTipoOperacion,
-    codigo: toText(row.Codigo),
     description: toText(row.Descripcion),
     prefijo: toText(row.Prefijo),
     secuenciaInicial: toNumber(row.SecuenciaInicial ?? 1),
@@ -9512,7 +9703,6 @@ function mapFacTipoDocRow(row: QueryRow): FacTipoDocumentoRecord {
     nombreNCF: toText(row.NombreNCF),
     afectaInventario: Boolean(row.AfectaInventario),
     reservaStock: Boolean(row.ReservaStock),
-    generaFactura: Boolean(row.GeneraFactura),
     active: Boolean(row.Activo),
   }
 }
@@ -9660,6 +9850,34 @@ function mapFacFormaPagoRow(row: QueryRow): FacFormaPagoRecord {
 export async function getFacFormasPago(): Promise<FacFormaPagoRecord[]> {
   const pool = await getPool()
   const result = await pool.request().input("Accion", "L").execute("dbo.spFacFormasPagoCRUD")
+  return (result.recordset as QueryRow[]).map(mapFacFormaPagoRow)
+}
+
+// Formas de pago habilitadas para cobro en un punto de emisión
+// Si el punto no tiene formas asignadas, devuelve todas las activas con MostrarEnPantallaCobro=1
+export async function getFormasPagoParaCobro(idPuntoEmision: number): Promise<FacFormaPagoRecord[]> {
+  const pool = await getPool()
+  const result = await pool.request()
+    .query(`
+      SELECT f.IdFormaPago, f.Descripcion, f.Comentario,
+             f.TipoValor, f.TipoValor607,
+             f.IdMonedaBase, mb.Nombre AS NombreMonedaBase, mb.Simbolo AS SimboloMonedaBase,
+             f.IdMonedaOrigen, mo.Nombre AS NombreMonedaOrigen, mo.Simbolo AS SimboloMonedaOrigen,
+             f.TasaCambioOrigen, f.TasaCambioBase, f.Factor,
+             f.MostrarEnPantallaCobro, f.AutoConsumo, f.MostrarEnCobrosMixtos, f.AfectaCuadreCaja,
+             f.AbreCajon, f.RequiereReferencia, f.RequiereAutorizacion,
+             f.Posicion, f.GrupoCierre, f.CantidadImpresiones,
+             f.ColorFondo, f.ColorTexto, f.Icono, f.Activo
+      FROM dbo.FacFormasPago f
+      LEFT JOIN dbo.Monedas mb ON mb.IdMoneda = f.IdMonedaBase
+      LEFT JOIN dbo.Monedas mo ON mo.IdMoneda = f.IdMonedaOrigen
+      WHERE f.RowStatus = 1 AND f.Activo = 1 AND (f.MostrarEnPantallaCobro = 1 OR f.MostrarEnCobrosMixtos = 1)
+        AND (
+          EXISTS (SELECT 1 FROM dbo.FacFormaPagoPuntoEmision fp WHERE fp.IdFormaPago = f.IdFormaPago AND fp.IdPuntoEmision = ${idPuntoEmision})
+          OR NOT EXISTS (SELECT 1 FROM dbo.FacFormaPagoPuntoEmision WHERE IdFormaPago = f.IdFormaPago)
+        )
+      ORDER BY f.Posicion, f.Descripcion
+    `)
   return (result.recordset as QueryRow[]).map(mapFacFormaPagoRow)
 }
 
@@ -9843,8 +10061,6 @@ export async function syncFacCajaPOSUsuarios(id: number, userIds: number[]): Pro
 // FacDocumentosPOS — documentos pausados / pendientes POS
 // ─────────────────────────────────────────────────────────────
 
-export type FacDocumentoPOSEstado = "PAUSADO" | "EN_EDICION" | "EN_CAJA" | "RETORNADO" | "ANULADO"
-
 export type FacDocumentoPOSLinea = {
   numLinea: number
   productId: number
@@ -9857,6 +10073,7 @@ export type FacDocumentoPOSLinea = {
   applyTax: boolean
   applyTip: boolean
   lineDiscount: number
+  lineComment?: string | null
 }
 
 export type FacDocumentoPOS = {
@@ -9864,15 +10081,17 @@ export type FacDocumentoPOS = {
   idPuntoEmision: number
   idUsuario: number
   idCliente: number | null
-  nombreCliente: string | null   // nombre manual para cliente final + referencia en impresion
-  referencia: string | null      // referencia del documento (guardada y visible en impresion)
+  referenciaCliente: string | null
+  referencia: string | null
+  comentarioGeneral: string | null
   idTipoDocumento: number | null
   nombreTipoDocumento: string | null
   idAlmacen: number | null
   fechaDocumento: string
   vendedor: string | null
-  estado: FacDocumentoPOSEstado
   notas: string | null
+  idMoneda: number | null
+  tasaCambio: number
   fechaCreacion: string
   cantidadLineas: number
   totalEstimado: number | null
@@ -9888,15 +10107,17 @@ function mapFacDocumentoPOSRow(row: QueryRow): FacDocumentoPOS {
     idPuntoEmision: toNumber(row.IdPuntoEmision),
     idUsuario: toNumber(row.IdUsuario),
     idCliente: row.IdCliente != null ? toNumber(row.IdCliente) : null,
-    nombreCliente: row.NombreCliente != null ? toText(row.NombreCliente) : null,
+    referenciaCliente: row.ReferenciaCliente != null ? toText(row.ReferenciaCliente) : null,
     referencia: row.Referencia != null ? toText(row.Referencia) : null,
+    comentarioGeneral: row.ComentarioGeneral != null ? toText(row.ComentarioGeneral) : null,
     idTipoDocumento: row.IdTipoDocumento != null ? toNumber(row.IdTipoDocumento) : null,
     nombreTipoDocumento: row.NombreTipoDocumento != null ? toText(row.NombreTipoDocumento) : null,
     idAlmacen: row.IdAlmacen != null ? toNumber(row.IdAlmacen) : null,
     fechaDocumento: toText(row.FechaDocumento),
     vendedor: row.Vendedor != null ? toText(row.Vendedor) : null,
-    estado: toText(row.Estado) as FacDocumentoPOSEstado,
     notas: row.Notas != null ? toText(row.Notas) : null,
+    idMoneda: row.IdMoneda != null ? toNumber(row.IdMoneda) : null,
+    tasaCambio: row.TasaCambio != null ? toNumber(row.TasaCambio) : 1,
     fechaCreacion: toText(row.FechaCreacion),
     cantidadLineas: row.CantidadLineas != null ? toNumber(row.CantidadLineas) : 0,
     totalEstimado: row.TotalEstimado != null ? toNumber(row.TotalEstimado) : null,
@@ -9916,6 +10137,7 @@ function mapFacDocumentoPOSLineaRow(row: QueryRow): FacDocumentoPOSLinea {
     applyTax: Boolean(row.AplicaImpuesto),
     applyTip: Boolean(row.AplicaPropina),
     lineDiscount: toNumber(row.DescuentoLinea),
+    lineComment: row.ComentarioLinea != null ? toText(row.ComentarioLinea) : null,
   }
 }
 
@@ -9934,9 +10156,10 @@ export async function getFacDocumentoPOS(id: number): Promise<FacDocumentoPOSDet
     .input("Accion", "O")
     .input("IdDocumentoPOS", id)
     .execute("dbo.spFacDocumentosPOSCRUD")
-  const header = (result.recordsets[0] as QueryRow[])[0]
+  const recordsets = result.recordsets as QueryRow[][]
+  const header = recordsets[0]?.[0]
   if (!header) return null
-  const lineas = (result.recordsets[1] as QueryRow[]).map(mapFacDocumentoPOSLineaRow)
+  const lineas = (recordsets[1] ?? []).map(mapFacDocumentoPOSLineaRow)
   return {
     ...mapFacDocumentoPOSRow(header),
     cantidadLineas: lineas.length,
@@ -9950,19 +10173,22 @@ export type SaveFacDocumentoPOSInput = {
   idPuntoEmision: number
   idUsuario: number
   idCliente?: number | null
-  nombreCliente?: string | null
+  referenciaCliente?: string | null
   referencia?: string | null
+  comentarioGeneral?: string | null
   idTipoDocumento?: number | null
   idAlmacen?: number | null
   fechaDocumento?: string
   vendedor?: string | null
   notas?: string | null
+  idMoneda?: number | null
+  tasaCambio?: number
   lineas: FacDocumentoPOSLinea[]
 }
 
 export async function saveFacDocumentoPOS(
   input: SaveFacDocumentoPOSInput,
-  accion: "I" | "U" | "P" = "I"
+  accion: "I" | "U" = "I"
 ): Promise<number> {
   const pool = await getPool()
   const lineasJson = JSON.stringify(
@@ -9974,41 +10200,19 @@ export async function saveFacDocumentoPOS(
     .input("IdPuntoEmision", input.idPuntoEmision)
     .input("IdUsuario", input.idUsuario)
     .input("IdCliente", input.idCliente ?? null)
-    .input("NombreCliente", input.nombreCliente ?? null)
+    .input("ReferenciaCliente", input.referenciaCliente ?? null)
     .input("Referencia", input.referencia ?? null)
+    .input("ComentarioGeneral", input.comentarioGeneral ?? null)
     .input("IdTipoDocumento", input.idTipoDocumento ?? null)
     .input("IdAlmacen", input.idAlmacen ?? null)
     .input("FechaDocumento", input.fechaDocumento ?? null)
     .input("Vendedor", input.vendedor ?? null)
     .input("Notas", input.notas ?? null)
+    .input("IdMoneda", input.idMoneda ?? null)
+    .input("TasaCambio", input.tasaCambio ?? 1)
     .input("LineasJson", lineasJson)
     .execute("dbo.spFacDocumentosPOSCRUD")
   return toNumber((result.recordset as QueryRow[])[0]?.IdDocumentoPOS ?? 0)
-}
-
-export async function cargarFacDocumentoPOS(id: number, idUsuario: number): Promise<void> {
-  const pool = await getPool()
-  await pool.request()
-    .input("Accion", "C")
-    .input("IdDocumentoPOS", id)
-    .input("IdUsuario", idUsuario)
-    .execute("dbo.spFacDocumentosPOSCRUD")
-}
-
-export async function enviarFacDocumentoPOSACaja(
-  id: number,
-  idUsuario: number,
-  nombreCliente?: string | null,
-  referencia?: string | null
-): Promise<void> {
-  const pool = await getPool()
-  await pool.request()
-    .input("Accion", "E")
-    .input("IdDocumentoPOS", id)
-    .input("IdUsuario", idUsuario)
-    .input("NombreCliente", nombreCliente ?? null)
-    .input("Referencia", referencia ?? null)
-    .execute("dbo.spFacDocumentosPOSCRUD")
 }
 
 export async function anularFacDocumentoPOS(id: number, idUsuario: number): Promise<void> {
@@ -10020,12 +10224,815 @@ export async function anularFacDocumentoPOS(id: number, idUsuario: number): Prom
     .execute("dbo.spFacDocumentosPOSCRUD")
 }
 
-export async function retornarFacDocumentoPOSDeCaja(id: number, idUsuario: number): Promise<void> {
+// ─────────────────────────────────────────────────────────────
+// FacDocumentos — documentos definitivos
+// ─────────────────────────────────────────────────────────────
+
+export type FacDocEstado = "I" | "P" | "N"
+
+export type FacDocumentoRecord = {
+  idDocumento: number
+  idTipoDocumento: number
+  documentoSecuencia: string
+  tipoPrefijo: string
+  tipoDocumentoNombre: string | null
+  idDocumentoOrigen: number | null
+  idDocumentoPOSOrigen: number | null
+  ncf: string | null
+  idTipoNCF: number | null
+  tipoNCFNombre: string | null
+  rncCliente: string | null
+  idPuntoEmision: number
+  puntoEmisionNombre: string | null
+  idCaja: number | null
+  idSesionCaja: number | null
+  idUsuario: number
+  usuarioNombre: string | null
+  idCliente: number | null
+  nombreCliente: string | null
+  secuencia: number
+  fechaDocumento: string
+  subTotal: number
+  descuento: number
+  impuesto: number
+  propina: number
+  total: number
+  totalPagado: number
+  idMoneda: number | null
+  tasaCambio: number
+  estado: FacDocEstado
+  fechaAnulacion: string | null
+  motivoAnulacion: string | null
+  comentario: string | null
+  origenDocumento: "ORDEN" | "POS" | null
+  totalRegistros: number
+}
+
+export type FacDocumentoDetalleRecord = {
+  idDocumentoDetalle: number
+  idDocumento: number
+  numeroLinea: number
+  idProducto: number | null
+  codigo: string | null
+  descripcion: string
+  cantidad: number
+  unidad: string | null
+  precioBase: number
+  porcentajeImpuesto: number
+  aplicaImpuesto: boolean
+  aplicaPropina: boolean
+  descuentoLinea: number
+  comentarioLinea: string | null
+  subTotalLinea: number
+  impuestoLinea: number
+  totalLinea: number
+}
+
+export type FacDocumentoPagoRecord = {
+  idPago: number
+  idDocumento: number
+  idFormaPago: number
+  formaPagoNombre: string
+  tipoValor: string
+  tipoValor607: string | null
+  monto: number
+  montoBase: number
+  idMoneda: number | null
+  tasaCambio: number
+  referencia: string | null
+  autorizacion: string | null
+}
+
+function mapFacDocumentoRow(row: QueryRow): FacDocumentoRecord {
+  return {
+    idDocumento:          Number(row.IdDocumento),
+    idTipoDocumento:      Number(row.IdTipoDocumento),
+    documentoSecuencia:   String(row.DocumentoSecuencia ?? ""),
+    tipoPrefijo:          String(row.TipoDocumentoPrefijo ?? ""),
+    tipoDocumentoNombre:  row.TipoDocumentoNombre ? String(row.TipoDocumentoNombre) : null,
+    idDocumentoOrigen:    row.IdDocumentoOrigen != null ? Number(row.IdDocumentoOrigen) : null,
+    idDocumentoPOSOrigen: row.IdDocumentoPOSOrigen != null ? Number(row.IdDocumentoPOSOrigen) : null,
+    ncf:                  row.NCF ? String(row.NCF) : null,
+    idTipoNCF:            row.IdTipoNCF != null ? Number(row.IdTipoNCF) : null,
+    tipoNCFNombre:        row.TipoNCFNombre ? String(row.TipoNCFNombre) : null,
+    rncCliente:           row.RNCCliente ? String(row.RNCCliente) : null,
+    idPuntoEmision:       Number(row.IdPuntoEmision),
+    puntoEmisionNombre:   row.PuntoEmisionNombre ? String(row.PuntoEmisionNombre) : null,
+    idCaja:               row.IdCaja != null ? Number(row.IdCaja) : null,
+    idSesionCaja:         row.IdSesionCaja != null ? Number(row.IdSesionCaja) : null,
+    idUsuario:            Number(row.IdUsuario),
+    usuarioNombre:        row.UsuarioNombre ? String(row.UsuarioNombre) : null,
+    idCliente:            row.IdCliente != null ? Number(row.IdCliente) : null,
+    nombreCliente:        row.ClienteNombre ? String(row.ClienteNombre) : null,
+    secuencia:            Number(row.Secuencia ?? 0),
+    fechaDocumento:       row.FechaDocumento ? (row.FechaDocumento instanceof Date ? row.FechaDocumento.toISOString().slice(0, 10) : String(row.FechaDocumento).slice(0, 10)) : "",
+    subTotal:             Number(row.SubTotal ?? 0),
+    descuento:            Number(row.Descuento ?? 0),
+    impuesto:             Number(row.Impuesto ?? 0),
+    propina:              Number(row.Propina ?? 0),
+    total:                Number(row.Total ?? 0),
+    totalPagado:          Number(row.TotalPagado ?? 0),
+    idMoneda:             row.IdMoneda != null ? Number(row.IdMoneda) : null,
+    tasaCambio:           Number(row.TasaCambio ?? 1),
+    estado:               (String(row.Estado ?? "I").trim()) as FacDocEstado,
+    fechaAnulacion:       row.FechaAnulacion ? String(row.FechaAnulacion) : null,
+    motivoAnulacion:      row.MotivoAnulacion ? String(row.MotivoAnulacion) : null,
+    comentario:           row.Comentario ? String(row.Comentario) : null,
+    origenDocumento:      (row.OrigenDocumento || row.OrigenDocumentoEfectivo)
+                            ? ((row.OrigenDocumento || row.OrigenDocumentoEfectivo) as "ORDEN" | "POS")
+                            : null,
+    totalRegistros:       Number(row.TotalRegistros ?? 0),
+  }
+}
+
+function mapFacDocumentoDetalleRow(row: QueryRow): FacDocumentoDetalleRecord {
+  return {
+    idDocumentoDetalle:   Number(row.IdDocumentoDetalle),
+    idDocumento:          Number(row.IdDocumento),
+    numeroLinea:          Number(row.NumeroLinea ?? 1),
+    idProducto:           row.IdProducto != null ? Number(row.IdProducto) : null,
+    codigo:               row.Codigo ? String(row.Codigo) : null,
+    descripcion:          String(row.Descripcion ?? ""),
+    cantidad:             Number(row.Cantidad ?? 1),
+    unidad:               row.Unidad ? String(row.Unidad) : null,
+    precioBase:           Number(row.PrecioBase ?? 0),
+    porcentajeImpuesto:   Number(row.PorcentajeImpuesto ?? 0),
+    aplicaImpuesto:       Boolean(row.AplicaImpuesto),
+    aplicaPropina:        Boolean(row.AplicaPropina),
+    descuentoLinea:       Number(row.DescuentoLinea ?? 0),
+    comentarioLinea:      row.ComentarioLinea ? String(row.ComentarioLinea) : null,
+    subTotalLinea:        Number(row.SubTotalLinea ?? 0),
+    impuestoLinea:        Number(row.ImpuestoLinea ?? 0),
+    totalLinea:           Number(row.TotalLinea ?? 0),
+  }
+}
+
+function mapFacDocumentoPagoRow(row: QueryRow): FacDocumentoPagoRecord {
+  return {
+    idPago:          Number(row.IdPago),
+    idDocumento:     Number(row.IdDocumento),
+    idFormaPago:     Number(row.IdFormaPago),
+    formaPagoNombre: String(row.FormaPagoNombre ?? ""),
+    tipoValor:       String(row.TipoValor ?? ""),
+    tipoValor607:    row.TipoValor607 ? String(row.TipoValor607) : null,
+    monto:           Number(row.Monto ?? 0),
+    montoBase:       Number(row.MontoBase ?? 0),
+    idMoneda:        row.IdMoneda != null ? Number(row.IdMoneda) : null,
+    tasaCambio:      Number(row.TasaCambio ?? 1),
+    referencia:      row.Referencia ? String(row.Referencia) : null,
+    autorizacion:    row.Autorizacion ? String(row.Autorizacion) : null,
+  }
+}
+
+export async function listFacDocumentos(params: {
+  idPuntoEmision?: number
+  fechaDesde?: string
+  fechaHasta?: string
+  soloTipo?: number
+  soloEstado?: string
+  secuenciaDesde?: number
+  secuenciaHasta?: number
+  origenDocumento?: "ORDEN" | "POS" | null
+  pageSize?: number
+  pageOffset?: number
+}): Promise<FacDocumentoRecord[]> {
+  const pool = await getPool()
+  const r = pool.request().input("Accion", "L")
+  if (params.idPuntoEmision)  r.input("IdPuntoEmision",  params.idPuntoEmision)
+  if (params.fechaDesde)      r.input("FechaDesde",      params.fechaDesde)
+  if (params.fechaHasta)      r.input("FechaHasta",      params.fechaHasta)
+  if (params.soloTipo)        r.input("SoloTipo",        params.soloTipo)
+  if (params.soloEstado)      r.input("SoloEstado",      params.soloEstado)
+  if (params.secuenciaDesde)  r.input("SecuenciaDesde",  params.secuenciaDesde)
+  if (params.secuenciaHasta)  r.input("SecuenciaHasta",  params.secuenciaHasta)
+  if (params.origenDocumento) r.input("OrigenDocumento", params.origenDocumento)
+  r.input("PageSize",   params.pageSize   ?? 100)
+  r.input("PageOffset", params.pageOffset ?? 0)
+  const result = await r.execute("dbo.spFacDocumentosCRUD")
+  return (result.recordset as QueryRow[]).map(mapFacDocumentoRow)
+}
+
+export type FacDocumentoConPagosRecord = FacDocumentoRecord & {
+  pagoEfectivo: number
+  pagoTarjeta: number
+  pagoCheque: number
+  pagoTransferencia: number
+  pagoCredito: number
+  pagoOtros: number
+}
+
+export async function listFacDocumentosConPagos(params: {
+  idPuntoEmision?: number
+  fechaDesde?: string
+  fechaHasta?: string
+  soloTipo?: number
+  soloEstado?: string
+  secuenciaDesde?: number
+  secuenciaHasta?: number
+  pageSize?: number
+  pageOffset?: number
+}): Promise<FacDocumentoConPagosRecord[]> {
+  const pool = await getPool()
+  const pageSize   = params.pageSize   ?? 100
+  const pageOffset = params.pageOffset ?? 0
+
+  const result = await pool.request()
+    .input("FechaDesde",     params.fechaDesde     ?? null)
+    .input("FechaHasta",     params.fechaHasta     ?? null)
+    .input("IdPuntoEmision", params.idPuntoEmision ?? null)
+    .input("SoloTipo",       params.soloTipo       ?? null)
+    .input("SoloEstado",     params.soloEstado     ?? null)
+    .input("SecuenciaDesde", params.secuenciaDesde ?? null)
+    .input("SecuenciaHasta", params.secuenciaHasta ?? null)
+    .input("PageSize",       pageSize)
+    .input("PageOffset",     pageOffset)
+    .query(`
+      SELECT
+        d.IdDocumento, d.IdTipoDocumento,
+        d.DocumentoSecuencia, t.Prefijo AS TipoDocumentoPrefijo,
+        t.Descripcion AS TipoDocumentoNombre,
+        d.IdDocumentoOrigen, d.IdDocumentoPOSOrigen,
+        d.NCF, d.IdTipoNCF, d.RNCCliente,
+        d.IdPuntoEmision, pe.Nombre AS PuntoEmisionNombre,
+        d.IdCaja, d.IdSesionCaja, d.IdUsuario, u.NombreUsuario AS UsuarioNombre,
+        d.IdCliente, c.Nombre AS ClienteNombre, d.Secuencia,
+        d.FechaDocumento,
+        d.SubTotal, d.Descuento, d.Impuesto, d.Propina, d.Total,
+        d.TotalPagado,
+        d.IdMoneda, d.TasaCambio, d.Estado,
+        d.FechaAnulacion, d.MotivoAnulacion, d.Comentario,
+        d.IdUsuarioCreacion,
+        NULL AS TipoNCFNombre,
+        COUNT(*) OVER() AS TotalRegistros,
+        SUM(CASE WHEN f.TipoValor = 'EF' THEN p.Monto ELSE 0 END) AS PagoEfectivo,
+        SUM(CASE WHEN f.TipoValor = 'TC' THEN p.Monto ELSE 0 END) AS PagoTarjeta,
+        SUM(CASE WHEN f.TipoValor = 'CH' THEN p.Monto ELSE 0 END) AS PagoCheque,
+        SUM(CASE WHEN f.TipoValor = 'OV' THEN p.Monto ELSE 0 END) AS PagoTransferencia,
+        SUM(CASE WHEN f.TipoValor = 'VC' THEN p.Monto ELSE 0 END) AS PagoCredito,
+        SUM(CASE WHEN f.TipoValor NOT IN ('EF','TC','CH','OV','VC') THEN p.Monto ELSE 0 END) AS PagoOtros
+      FROM dbo.FacDocumentos d
+      JOIN dbo.FacTiposDocumento t    ON t.IdTipoDocumento = d.IdTipoDocumento
+      LEFT JOIN dbo.PuntosEmision pe  ON pe.IdPuntoEmision = d.IdPuntoEmision
+      LEFT JOIN dbo.Usuarios u        ON u.IdUsuario = d.IdUsuario
+      LEFT JOIN dbo.Terceros c        ON c.IdTercero = d.IdCliente
+      LEFT JOIN dbo.FacDocumentoPagos p ON p.IdDocumento = d.IdDocumento AND p.RowStatus = 1
+      LEFT JOIN dbo.FacFormasPago f   ON f.IdFormaPago = p.IdFormaPago
+      WHERE d.RowStatus = 1
+        AND (@IdPuntoEmision IS NULL OR d.IdPuntoEmision  = @IdPuntoEmision)
+        AND (@FechaDesde     IS NULL OR d.FechaDocumento >= @FechaDesde)
+        AND (@FechaHasta     IS NULL OR d.FechaDocumento <= @FechaHasta)
+        AND (@SoloTipo       IS NULL OR d.IdTipoDocumento = @SoloTipo)
+        AND (@SoloEstado     IS NULL OR d.Estado          = @SoloEstado)
+        AND (@SecuenciaDesde IS NULL OR d.Secuencia      >= @SecuenciaDesde)
+        AND (@SecuenciaHasta IS NULL OR d.Secuencia      <= @SecuenciaHasta)
+      GROUP BY
+        d.IdDocumento, d.IdTipoDocumento,
+        d.DocumentoSecuencia, t.Prefijo,
+        t.Descripcion,
+        d.IdDocumentoOrigen, d.IdDocumentoPOSOrigen,
+        d.NCF, d.IdTipoNCF, d.RNCCliente,
+        d.IdPuntoEmision, pe.Nombre,
+        d.IdCaja, d.IdSesionCaja, d.IdUsuario, u.NombreUsuario,
+        d.IdCliente, c.Nombre, d.Secuencia,
+        d.FechaDocumento,
+        d.SubTotal, d.Descuento, d.Impuesto, d.Propina, d.Total,
+        d.TotalPagado,
+        d.IdMoneda, d.TasaCambio, d.Estado,
+        d.FechaAnulacion, d.MotivoAnulacion, d.Comentario,
+        d.IdUsuarioCreacion
+      ORDER BY d.FechaDocumento DESC, d.IdDocumento DESC
+      OFFSET @PageOffset ROWS FETCH NEXT @PageSize ROWS ONLY
+    `)
+
+  return (result.recordset as QueryRow[]).map((row) => ({
+    ...mapFacDocumentoRow(row),
+    pagoEfectivo:      Number(row.PagoEfectivo      ?? 0),
+    pagoTarjeta:       Number(row.PagoTarjeta       ?? 0),
+    pagoCheque:        Number(row.PagoCheque        ?? 0),
+    pagoTransferencia: Number(row.PagoTransferencia ?? 0),
+    pagoCredito:       Number(row.PagoCredito       ?? 0),
+    pagoOtros:         Number(row.PagoOtros         ?? 0),
+  }))
+}
+
+export async function getFacDocumento(idDocumento: number): Promise<{
+  doc: FacDocumentoRecord
+  lineas: FacDocumentoDetalleRecord[]
+  pagos: FacDocumentoPagoRecord[]
+} | null> {
+  const pool = await getPool()
+  const result = await pool.request()
+    .input("Accion", "G")
+    .input("IdDocumento", idDocumento)
+    .execute("dbo.spFacDocumentosCRUD")
+
+  const sets = result.recordsets as unknown as QueryRow[][]
+  if (!sets[0]?.length) return null
+
+  const doc = mapFacDocumentoRow(sets[0][0])
+  const lineas = (sets[1] ?? []).map(mapFacDocumentoDetalleRow)
+
+  // Pagos los cargamos aparte
+  const pagosResult = await pool.request()
+    .input("Accion", "L")
+    .input("IdDocumento", idDocumento)
+    .execute("dbo.spFacDocumentoPagosCRUD")
+  const pagos = (pagosResult.recordset as QueryRow[]).map(mapFacDocumentoPagoRow)
+
+  return { doc, lineas, pagos }
+}
+
+export type SaveFacDocumentoInput = {
+  idDocumento?: number  // undefined = INSERT, provided = UPDATE
+  idTipoDocumento: number
+  idPuntoEmision: number
+  idUsuario: number
+  idCliente?: number | null
+  rncCliente?: string | null
+  ncf?: string | null
+  idTipoNCF?: number | null
+  fecha: string
+  comentario?: string | null
+  lineas: Array<{
+    descripcion: string
+    cantidad: number
+    precioBase: number
+    porcentajeImpuesto: number
+    aplicaImpuesto: boolean
+    descuentoLinea: number
+    idProducto?: number | null
+    codigo?: string | null
+    unidad?: string | null
+  }>
+}
+
+export async function saveFacDocumento(input: SaveFacDocumentoInput): Promise<{ idDocumento: number; secuencia: number }> {
+  const pool = await getPool()
+  const accion = input.idDocumento ? "U" : "I"
+
+  // Calcular totales
+  let subTotal = 0, impuesto = 0, descuento = 0
+  for (const l of input.lineas) {
+    const lineSub = l.cantidad * l.precioBase
+    const lineDesc = l.descuentoLinea
+    const lineImp = l.aplicaImpuesto ? (lineSub - lineDesc) * (l.porcentajeImpuesto / 100) : 0
+    subTotal += lineSub
+    descuento += lineDesc
+    impuesto += lineImp
+  }
+  const total = subTotal - descuento + impuesto
+
+  // Si es INSERT, obtener próxima secuencia
+  let proxSecuencia = 0
+  if (!input.idDocumento) {
+    const seqRes = await pool.request()
+      .input("IdTipoDocumentoSeq", input.idTipoDocumento)
+      .query(`
+        SELECT ISNULL(MAX(Secuencia), 0) + 1 AS ProxSecuencia
+        FROM dbo.FacDocumentos
+        WHERE IdTipoDocumento = @IdTipoDocumentoSeq AND RowStatus = 1
+      `)
+    proxSecuencia = Number((seqRes.recordset as QueryRow[])[0]?.ProxSecuencia ?? 1)
+  }
+
+  // Cabecera
+  const cabeceraRes = await pool.request()
+    .input("Accion",               accion)
+    .input("IdDocumento",          input.idDocumento ?? null)
+    .input("IdTipoDocumento",      input.idTipoDocumento)
+    .input("IdPuntoEmision",       input.idPuntoEmision)
+    .input("IdUsuario",            input.idUsuario)
+    .input("IdCliente",            input.idCliente ?? null)
+    .input("RNCCliente",           input.rncCliente ?? null)
+    .input("NCF",                  input.ncf ?? null)
+    .input("IdTipoNCF",            input.idTipoNCF ?? null)
+    .input("Secuencia",            input.idDocumento ? null : proxSecuencia)
+    .input("FechaDocumento",       input.fecha)
+    .input("SubTotal",             subTotal)
+    .input("Descuento",            descuento)
+    .input("Impuesto",             impuesto)
+    .input("Total",                total)
+    .input("Comentario",           input.comentario ?? null)
+    .input("IdUsuarioAccion",      input.idUsuario)
+    .execute("dbo.spFacDocumentosCRUD")
+
+  const idDocumento = input.idDocumento ?? Number((cabeceraRes.recordset as QueryRow[])[0]?.IdDocumento ?? 0)
+  if (!idDocumento) throw new Error("Error al guardar el documento.")
+
+  // Si es edición, eliminar líneas previas
+  if (input.idDocumento) {
+    await pool.request().query(`
+      DELETE FROM dbo.FacDocumentoDetalle WHERE IdDocumento = ${idDocumento}
+    `)
+    // Obtener secuencia actual
+    const docRes = await pool.request().query(`SELECT Secuencia FROM dbo.FacDocumentos WHERE IdDocumento = ${idDocumento}`)
+    proxSecuencia = Number((docRes.recordset as QueryRow[])[0]?.Secuencia ?? 0)
+  }
+
+  // Insertar líneas
+  for (let i = 0; i < input.lineas.length; i++) {
+    const l = input.lineas[i]
+    const lineSub = l.cantidad * l.precioBase
+    const lineDesc = l.descuentoLinea
+    const lineImp = l.aplicaImpuesto ? (lineSub - lineDesc) * (l.porcentajeImpuesto / 100) : 0
+    const lineTotal = lineSub - lineDesc + lineImp
+
+    await pool.request()
+      .input("IdDocumento",        idDocumento)
+      .input("NumeroLinea",        i + 1)
+      .input("IdProducto",         l.idProducto ?? null)
+      .input("Codigo",             l.codigo ?? null)
+      .input("Descripcion",        l.descripcion)
+      .input("Cantidad",           l.cantidad)
+      .input("Unidad",             l.unidad ?? null)
+      .input("PrecioBase",         l.precioBase)
+      .input("PorcentajeImpuesto", l.porcentajeImpuesto)
+      .input("AplicaImpuesto",     l.aplicaImpuesto ? 1 : 0)
+      .input("DescuentoLinea",     lineDesc)
+      .input("SubTotalLinea",      lineSub)
+      .input("ImpuestoLinea",      lineImp)
+      .input("TotalLinea",         lineTotal)
+      .query(`
+        INSERT INTO dbo.FacDocumentoDetalle (
+          IdDocumento, NumeroLinea, IdProducto, Codigo, Descripcion,
+          Cantidad, Unidad, PrecioBase, PorcentajeImpuesto, AplicaImpuesto,
+          AplicaPropina, DescuentoLinea, SubTotalLinea, ImpuestoLinea, TotalLinea, RowStatus
+        ) VALUES (
+          @IdDocumento, @NumeroLinea, @IdProducto, @Codigo, @Descripcion,
+          @Cantidad, @Unidad, @PrecioBase, @PorcentajeImpuesto, @AplicaImpuesto,
+          0, @DescuentoLinea, @SubTotalLinea, @ImpuestoLinea, @TotalLinea, 1
+        )
+      `)
+  }
+
+  return { idDocumento, secuencia: proxSecuencia }
+}
+
+export async function anularFacDocumento(
+  idDocumento: number,
+  motivoAnulacion: string,
+  idUsuario: number,
+): Promise<void> {
   const pool = await getPool()
   await pool.request()
-    .input("Accion", "R")
-    .input("IdDocumentoPOS", id)
-    .input("IdUsuario", idUsuario)
-    .execute("dbo.spFacDocumentosPOSCRUD")
+    .input("Accion", "A")
+    .input("IdDocumento", idDocumento)
+    .input("MotivoAnulacion", motivoAnulacion)
+    .input("IdUsuarioAccion", idUsuario)
+    .execute("dbo.spFacDocumentosCRUD")
+}
+
+export async function createNotaCreditoDesdeFactura(params: {
+  idDocumentoOrigen: number
+  idUsuario: number
+  motivo?: string
+  lineas: Array<{ idDocumentoDetalle: number; cantidadDevolucion: number }>
+}): Promise<{ idDocumento: number; secuencia: number }> {
+  const pool = await getPool()
+
+  // 1. Cargar cabecera + detalle de la factura origen
+  const origen = await getFacDocumento(params.idDocumentoOrigen)
+  if (!origen) throw new Error("Factura origen no encontrada.")
+  if (origen.doc.tipoPrefijo !== "FAC")
+    throw new Error("Solo se pueden generar notas de crédito desde facturas.")
+
+  // 2. Obtener el tipo de documento NC
+  const tiposRes = await pool.request()
+    .input("Accion", "L")
+    .execute("dbo.spFacTiposDocumentoCRUD")
+  const tipoNC = ((tiposRes.recordset as QueryRow[]).map(mapFacTipoDocRow)).find((t) => t.prefijo === "NC" && t.active)
+  if (!tipoNC) throw new Error("No existe tipo de documento NC configurado. Configure un tipo con prefijo 'NC' en Facturación > Configuración.")
+
+  // 3. Calcular la próxima secuencia para NC
+  const seqResult = await pool.request()
+    .input("IdTipoDocNC", tipoNC.id)
+    .query(`
+      SELECT ISNULL(MAX(Secuencia), 0) + 1 AS ProxSecuencia
+      FROM dbo.FacDocumentos
+      WHERE IdTipoDocumento = @IdTipoDocNC AND RowStatus = 1
+    `)
+  const proxSecuencia: number = Number((seqResult.recordset as QueryRow[])[0]?.ProxSecuencia ?? 1)
+
+  // 4. Filtrar las líneas de devolución (solo las que tienen cantidad > 0)
+  const lineasDevolucion = params.lineas.filter((l) => l.cantidadDevolucion > 0)
+  if (lineasDevolucion.length === 0) throw new Error("Debe seleccionar al menos una línea para devolver.")
+
+  const lineasOrigen = origen.lineas.filter((l) =>
+    lineasDevolucion.some((d) => d.idDocumentoDetalle === l.idDocumentoDetalle)
+  )
+
+  // 5. Recalcular totales de la NC
+  let subTotal = 0, descuento = 0, impuesto = 0, propina = 0
+  for (const linea of lineasOrigen) {
+    const devolucion = lineasDevolucion.find((d) => d.idDocumentoDetalle === linea.idDocumentoDetalle)
+    if (!devolucion) continue
+    const factor = devolucion.cantidadDevolucion / (linea.cantidad || 1)
+    subTotal  += linea.subTotalLinea  * factor
+    impuesto  += linea.impuestoLinea  * factor
+    descuento += linea.descuentoLinea * factor
+  }
+  const total = subTotal + impuesto - descuento + propina
+
+  // 6. Insertar cabecera NC
+  const cabeceraRes = await pool.request()
+    .input("Accion",               "I")
+    .input("IdTipoDocumento",      tipoNC.id)
+    .input("IdDocumentoOrigen",    params.idDocumentoOrigen)
+    .input("IdPuntoEmision",       origen.doc.idPuntoEmision)
+    .input("IdUsuario",            params.idUsuario)
+    .input("IdCliente",            origen.doc.idCliente ?? null)
+    .input("RNCCliente",           origen.doc.rncCliente ?? null)
+    .input("Secuencia",            proxSecuencia)
+    .input("FechaDocumento",       new Date().toISOString().slice(0, 10))
+    .input("SubTotal",             subTotal)
+    .input("Descuento",            descuento)
+    .input("Impuesto",             impuesto)
+    .input("Propina",              propina)
+    .input("Total",                total)
+    .input("Comentario",           params.motivo ?? null)
+    .input("IdUsuarioAccion",      params.idUsuario)
+    .execute("dbo.spFacDocumentosCRUD")
+
+  const idDocumento = Number((cabeceraRes.recordset as QueryRow[])[0]?.IdDocumento ?? 0)
+  if (!idDocumento) throw new Error("Error al crear la nota de crédito.")
+
+  // 7. Insertar líneas NC con cantidades de devolución
+  for (const linea of lineasOrigen) {
+    const devolucion = lineasDevolucion.find((d) => d.idDocumentoDetalle === linea.idDocumentoDetalle)
+    if (!devolucion) continue
+    const factor = devolucion.cantidadDevolucion / (linea.cantidad || 1)
+    const cantDev = devolucion.cantidadDevolucion
+    const subtotalLinea = linea.subTotalLinea  * factor
+    const impuestoLinea = linea.impuestoLinea  * factor
+    const descuentoLinea = linea.descuentoLinea * factor
+    const totalLinea = subtotalLinea + impuestoLinea - descuentoLinea
+
+    await pool.request()
+      .input("IdDocumento",         idDocumento)
+      .input("NumeroLinea",         linea.numeroLinea)
+      .input("IdProducto",          linea.idProducto ?? null)
+      .input("Codigo",              linea.codigo ?? null)
+      .input("Descripcion",         linea.descripcion)
+      .input("Cantidad",            cantDev)
+      .input("Unidad",              linea.unidad ?? null)
+      .input("PrecioBase",          linea.precioBase)
+      .input("PorcentajeImpuesto",  linea.porcentajeImpuesto)
+      .input("AplicaImpuesto",      linea.aplicaImpuesto ? 1 : 0)
+      .input("AplicaPropina",       linea.aplicaPropina ? 1 : 0)
+      .input("DescuentoLinea",      descuentoLinea)
+      .input("SubTotalLinea",       subtotalLinea)
+      .input("ImpuestoLinea",       impuestoLinea)
+      .input("TotalLinea",          totalLinea)
+      .query(`
+        INSERT INTO dbo.FacDocumentoDetalle (
+          IdDocumento, NumeroLinea, IdProducto, Codigo, Descripcion,
+          Cantidad, Unidad, PrecioBase, PorcentajeImpuesto, AplicaImpuesto,
+          AplicaPropina, DescuentoLinea, ComentarioLinea,
+          SubTotalLinea, ImpuestoLinea, TotalLinea, RowStatus
+        ) VALUES (
+          @IdDocumento, @NumeroLinea, @IdProducto, @Codigo, @Descripcion,
+          @Cantidad, @Unidad, @PrecioBase, @PorcentajeImpuesto, @AplicaImpuesto,
+          @AplicaPropina, @DescuentoLinea, NULL,
+          @SubTotalLinea, @ImpuestoLinea, @TotalLinea, 1
+        )
+      `)
+  }
+
+  return { idDocumento, secuencia: proxSecuencia }
+}
+
+export type ResumenVentasRow = {
+  periodo: string
+  tipoPrefijo: string
+  cantidadDocumentos: number
+  subTotal: number
+  descuento: number
+  impuesto: number
+  propina: number
+  total: number
+  pagoEfectivo: number
+  pagoTarjeta: number
+  pagoCheque: number
+  pagoTransferencia: number
+  pagoCredito: number
+  pagoOtros: number
+}
+
+export async function getResumenVentas(params: {
+  idPuntoEmision?: number
+  fechaDesde: string
+  fechaHasta: string
+  agrupador: "dia" | "semana" | "mes" | "tipo"
+}): Promise<ResumenVentasRow[]> {
+  const pool = await getPool()
+
+  const groupExpr = params.agrupador === "tipo"
+    ? "t.Prefijo"
+    : params.agrupador === "mes"
+    ? "FORMAT(d.FechaDocumento, 'yyyy-MM')"
+    : params.agrupador === "semana"
+    ? "CAST(DATEPART(year, d.FechaDocumento) AS VARCHAR) + '-W' + RIGHT('0' + CAST(DATEPART(week, d.FechaDocumento) AS VARCHAR), 2)"
+    : "CAST(d.FechaDocumento AS VARCHAR(10))"
+
+  const result = await pool.request()
+    .input("FechaDesde", params.fechaDesde)
+    .input("FechaHasta", params.fechaHasta)
+    .input("IdPuntoEmision", params.idPuntoEmision ?? null)
+    .query(`
+      SELECT
+        ${groupExpr}                                                      AS Periodo,
+        t.Prefijo                                                         AS TipoPrefijo,
+        COUNT(d.IdDocumento)                                              AS CantidadDocumentos,
+        SUM(d.SubTotal)                                                   AS SubTotal,
+        SUM(d.Descuento)                                                  AS Descuento,
+        SUM(d.Impuesto)                                                   AS Impuesto,
+        SUM(d.Propina)                                                    AS Propina,
+        SUM(d.Total)                                                      AS Total,
+        SUM(CASE WHEN f.TipoValor = 'EF' THEN p.Monto ELSE 0 END)        AS PagoEfectivo,
+        SUM(CASE WHEN f.TipoValor = 'TC' THEN p.Monto ELSE 0 END)        AS PagoTarjeta,
+        SUM(CASE WHEN f.TipoValor = 'CH' THEN p.Monto ELSE 0 END)        AS PagoCheque,
+        SUM(CASE WHEN f.TipoValor = 'OV' THEN p.Monto ELSE 0 END)        AS PagoTransferencia,
+        SUM(CASE WHEN f.TipoValor = 'VC' THEN p.Monto ELSE 0 END)        AS PagoCredito,
+        SUM(CASE WHEN f.TipoValor NOT IN ('EF','TC','CH','OV','VC') THEN p.Monto ELSE 0 END) AS PagoOtros
+      FROM dbo.FacDocumentos d
+      JOIN dbo.FacTiposDocumento t ON t.IdTipoDocumento = d.IdTipoDocumento
+      LEFT JOIN dbo.FacDocumentoPagos p ON p.IdDocumento = d.IdDocumento AND p.RowStatus = 1
+      LEFT JOIN dbo.FacFormasPago f      ON f.IdFormaPago = p.IdFormaPago
+      WHERE d.RowStatus = 1
+        AND d.Estado <> 'N'
+        AND t.Prefijo IN ('FAC','NC')
+        AND d.FechaDocumento >= @FechaDesde
+        AND d.FechaDocumento <= @FechaHasta
+        AND (@IdPuntoEmision IS NULL OR d.IdPuntoEmision = @IdPuntoEmision)
+      GROUP BY ${groupExpr}, t.Prefijo
+      ORDER BY 1
+    `)
+
+  return (result.recordset as QueryRow[]).map((row) => ({
+    periodo:              String(row.Periodo ?? ""),
+    tipoPrefijo:          String(row.TipoPrefijo ?? ""),
+    cantidadDocumentos:   Number(row.CantidadDocumentos ?? 0),
+    subTotal:             Number(row.SubTotal ?? 0),
+    descuento:            Number(row.Descuento ?? 0),
+    impuesto:             Number(row.Impuesto ?? 0),
+    propina:              Number(row.Propina ?? 0),
+    total:                Number(row.Total ?? 0),
+    pagoEfectivo:         Number(row.PagoEfectivo ?? 0),
+    pagoTarjeta:          Number(row.PagoTarjeta ?? 0),
+    pagoCheque:           Number(row.PagoCheque ?? 0),
+    pagoTransferencia:    Number(row.PagoTransferencia ?? 0),
+    pagoCredito:          Number(row.PagoCredito ?? 0),
+    pagoOtros:            Number(row.PagoOtros ?? 0),
+  }))
+}
+
+// ── Emitir factura desde POS ────────────────────────────────
+
+export type EmitirFacturaPOSInput = {
+  idDocumentoPOS: number
+  idSesionCaja?: number | null
+  idUsuario: number
+  pagos: Array<{
+    idFormaPago: number
+    monto: number
+    montoBase?: number
+    idMoneda?: number | null
+    tasaCambio?: number
+    referencia?: string | null
+    autorizacion?: string | null
+  }>
+  idTipoDocumento?: number
+  ncf?: string | null
+  idTipoNCF?: number | null
+  rncCliente?: string | null
+  fechaDocumento?: string
+  comentario?: string | null
+}
+
+export type EmitirFacturaPOSResult = {
+  idDocumento: number
+  secuencia: number
+  ncf: string | null
+  documentoSecuencia: string
+  total: number
+  totalPagado: number
+  estado: FacDocEstado
+}
+
+export async function emitirFacturaPOS(input: EmitirFacturaPOSInput): Promise<EmitirFacturaPOSResult> {
+  const pool = await getPool()
+  const pagosJSON = JSON.stringify(input.pagos.map((p) => ({
+    IdFormaPago:  p.idFormaPago,
+    Monto:        p.monto,
+    MontoBase:    p.montoBase ?? p.monto,
+    IdMoneda:     p.idMoneda ?? null,
+    TasaCambio:   p.tasaCambio ?? 1,
+    Referencia:   p.referencia ?? null,
+    Autorizacion: p.autorizacion ?? null,
+  })))
+
+  const r = pool.request()
+    .input("IdDocumentoPOS",   input.idDocumentoPOS)
+    .input("IdSesionCaja",     input.idSesionCaja ?? null)
+    .input("IdUsuario",        input.idUsuario)
+    .input("PagosJSON",        pagosJSON)
+    .input("IdTipoDocumento",  input.idTipoDocumento   ?? null)
+    .input("NCF",              input.ncf               ?? null)
+    .input("IdTipoNCF",        input.idTipoNCF         ?? null)
+    .input("RNCCliente",       input.rncCliente        ?? null)
+    .input("FechaDocumento",   input.fechaDocumento    ?? null)
+    .input("Comentario",       input.comentario        ?? null)
+
+  const result = await r.execute("dbo.spEmitirFacturaPOS")
+  const row = (result.recordset as QueryRow[])[0]
+  if (!row) throw new Error("spEmitirFacturaPOS no retornó resultado")
+
+  return {
+    idDocumento:        Number(row.IdDocumento),
+    secuencia:          Number(row.Secuencia),
+    ncf:                row.NCF ? String(row.NCF) : null,
+    documentoSecuencia: String(row.DocumentoSecuencia ?? ""),
+    total:              Number(row.Total ?? 0),
+    totalPagado:        Number(row.TotalPagado ?? 0),
+    estado:             (String(row.Estado ?? "I")) as FacDocEstado,
+  }
+}
+
+// ─── Vendedores ────────────────────────────────────────────────
+
+export type VendedorRecord = {
+  id: number
+  code: string
+  nombre: string
+  apellido: string
+  idUsuario: number | null
+  email: string
+  telefono: string
+  comisionPct: number
+  active: boolean
+}
+
+function mapVendedorRow(row: QueryRow): VendedorRecord {
+  return {
+    id: toNumber(row.IdVendedor),
+    code: toText(row.Codigo),
+    nombre: toText(row.Nombre),
+    apellido: toText(row.Apellido),
+    idUsuario: row.IdUsuario != null ? toNumber(row.IdUsuario) : null,
+    email: toText(row.Email),
+    telefono: toText(row.Telefono),
+    comisionPct: row.ComisionPct != null ? Number(row.ComisionPct) : 0,
+    active: Boolean(row.Activo),
+  }
+}
+
+export async function getVendedores(): Promise<VendedorRecord[]> {
+  const pool = await getPool()
+  const result = await pool.request()
+    .input("Accion", "L")
+    .execute("dbo.spVendedoresCRUD")
+    .catch(() => ({ recordset: [] }))
+  return (result.recordset as QueryRow[]).map(mapVendedorRow)
+}
+
+export async function saveVendedor(
+  input: { id?: number; code: string; nombre: string; apellido?: string; idUsuario?: number | null; email?: string; telefono?: string; comisionPct?: number; active?: boolean },
+  userId?: number,
+  session?: SessionContext,
+): Promise<VendedorRecord> {
+  const pool = await getPool()
+  const uid = userId ?? Number(process.env.MASU_DEMO_USER_ID ?? "1")
+  const accion = input.id ? "U" : "I"
+  const r = pool.request()
+    .input("Accion", accion)
+    .input("Codigo", input.code.trim().toUpperCase())
+    .input("Nombre", input.nombre.trim())
+    .input("Apellido", input.apellido?.trim() ?? null)
+    .input("IdUsuario", input.idUsuario ?? null)
+    .input("Email", input.email?.trim() ?? null)
+    .input("Telefono", input.telefono?.trim() ?? null)
+    .input("ComisionPct", input.comisionPct ?? 0)
+    .input("Activo", input.active ?? true)
+    .input("UsuarioCreacion", uid)
+    .input("UsuarioModificacion", uid)
+    .input("IdSesion", session?.sessionId ?? null)
+    .input("TokenSesion", session?.token ?? null)
+  if (input.id) r.input("IdVendedor", input.id)
+  const result = await r.execute("dbo.spVendedoresCRUD")
+  const row = (result.recordset as QueryRow[])[0]
+  if (row) return mapVendedorRow(row)
+  throw new Error("saveVendedor: SP no devolvió registro")
+}
+
+export async function deleteVendedor(id: number, session?: SessionContext): Promise<void> {
+  const pool = await getPool()
+  const uid = Number(process.env.MASU_DEMO_USER_ID ?? "1")
+  await pool.request()
+    .input("Accion", "D")
+    .input("IdVendedor", id)
+    .input("UsuarioModificacion", uid)
+    .input("IdSesion", session?.sessionId ?? null)
+    .input("TokenSesion", session?.token ?? null)
+    .execute("dbo.spVendedoresCRUD")
 }
 

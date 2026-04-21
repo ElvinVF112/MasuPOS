@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { InvDocTypeScreen } from "@/components/pos/inv-doc-type-screen"
 import { getCurrencies, getInvTiposDocumento } from "@/lib/pos-data"
 
@@ -22,8 +21,7 @@ export default async function TransferTypesPage() {
     .map((item) => ({ id: item.id, description: item.description, prefijo: item.prefijo }))
 
   return (
-    <AppShell>
-      <section className="content-page">
+    <section className="content-page">
         <InvDocTypeScreen
           tipoOperacion="T"
           title="Tipos de Transferencias"
@@ -33,6 +31,5 @@ export default async function TransferTypesPage() {
           exitDocTypes={exitDocTypeOptions}
         />
       </section>
-    </AppShell>
   )
 }

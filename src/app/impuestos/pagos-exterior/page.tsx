@@ -1,10 +1,8 @@
-import { AppShell } from "@/components/pos/app-shell"
 import { ModuleScaffoldScreen } from "@/components/pos/module-scaffold-screen"
 
 export default function TaxesForeignPaymentsPage() {
   return (
-    <AppShell>
-      <ModuleScaffoldScreen
+    <ModuleScaffoldScreen
         eyebrow="Impuestos / Operaciones"
         title="Pagos al Exterior"
         description="Base para operaciones fiscales especiales de pagos al exterior."
@@ -17,6 +15,5 @@ export default function TaxesForeignPaymentsPage() {
           "Preparar reportes propios del modulo",
         ]}
       />
-    </AppShell>
   )
 }
